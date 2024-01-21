@@ -103,6 +103,8 @@ namespace OpenRCT2::Scripting
         void lostCountdown_set(uint8_t value);
 
         DukValue thoughts_get() const;
+
+        DukValue items_get() const;
     };
 
 } // namespace OpenRCT2::Scripting

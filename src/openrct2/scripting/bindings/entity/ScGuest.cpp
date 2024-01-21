@@ -13,6 +13,7 @@
 
 #    include "../../../entity/Guest.h"
 #    include "../../../localisation/Localisation.h"
+#    include "../../../ride/ShopItem.h"
 
 namespace OpenRCT2::Scripting
 {
@@ -173,6 +174,7 @@ namespace OpenRCT2::Scripting
         dukglue_register_property(ctx, &ScGuest::isLost_get, nullptr, "isLost");
         dukglue_register_property(ctx, &ScGuest::lostCountdown_get, &ScGuest::lostCountdown_set, "lostCountdown");
         dukglue_register_property(ctx, &ScGuest::thoughts_get, nullptr, "thoughts");
+        dukglue_register_property(ctx, &ScGuest::items_get, nullptr, "items");
     }
 
     Guest* ScGuest::GetGuest() const
@@ -497,6 +499,32 @@ namespace OpenRCT2::Scripting
     ScThought::ScThought(PeepThought backing)
         : _backing(backing)
     {
+    }
+
+    DukValue ScGuest::items_get() const
+    {
+        auto ctx = GetContext()->GetScriptEngine().GetContext();
+
+        duk_push_array(ctx);
+
+        auto peep = GetGuest();
+        if (peep != nullptr)
+        {
+            uint64_t flags = peep->GetItemFlags();
+            uint64_t FLAG = 1;
+            duk_uarridx_t index = 0;
+            for (uint8_t itemId = 0; itemId < static_cast<uint8_t>(ShopItem::Count); itemId++)
+            {
+                if (flags & (FLAG << itemId))
+                {
+                    duk_push_int(ctx, static_cast<duk_int_t>(itemId));
+                    duk_put_prop_index(ctx, -2, index);
+                    index++;
+                }
+            }
+        }
+
+        return DukValue::take_from_stack(ctx, -1);
     }
 
     void ScThought::Register(duk_context* ctx)
