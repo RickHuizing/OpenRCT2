@@ -2767,6 +2767,11 @@ declare global {
          * The list of thoughts this guest has.
          */
         readonly thoughts: Thought[];
+
+        /**
+         * The list of items this guest has. Given as itemId / index according to ShopItem.h
+         */
+        readonly items: number[];
     }
 
     /**
