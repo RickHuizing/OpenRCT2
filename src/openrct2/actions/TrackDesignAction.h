@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -12,22 +12,25 @@
 #include "../ride/TrackDesign.h"
 #include "GameAction.h"
 
-class TrackDesignAction final : public GameActionBase<GameCommand::PlaceTrackDesign>
+namespace OpenRCT2::GameActions
 {
-private:
-    CoordsXYZD _loc;
-    TrackDesign _td;
+    class TrackDesignAction final : public GameActionBase<GameCommand::PlaceTrackDesign>
+    {
+    private:
+        CoordsXYZD _loc;
+        TrackDesign _td;
 
-public:
-    TrackDesignAction() = default;
-    TrackDesignAction(const CoordsXYZD& location, const TrackDesign& td);
+    public:
+        TrackDesignAction() = default;
+        TrackDesignAction(const CoordsXYZD& location, const TrackDesign& td);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
+        void Serialise(DataSerialiser& stream) override;
 
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

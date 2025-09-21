@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,22 +11,25 @@
 
 #include "GameAction.h"
 
-class ParkSetDateAction final : public GameActionBase<GameCommand::SetDate>
+namespace OpenRCT2::GameActions
 {
-private:
-    int32_t _year{};
-    int32_t _month{};
-    int32_t _day{};
+    class ParkSetDateAction final : public GameActionBase<GameCommand::SetDate>
+    {
+    private:
+        int32_t _year{};
+        int32_t _month{};
+        int32_t _day{};
 
-public:
-    ParkSetDateAction() = default;
-    ParkSetDateAction(int32_t year, int32_t month, int32_t day);
+    public:
+        ParkSetDateAction() = default;
+        ParkSetDateAction(int32_t year, int32_t month, int32_t day);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

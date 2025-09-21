@@ -1,10 +1,14 @@
 #include "GameActionResult.h"
 
-#include "../localisation/Localisation.h"
+#include "../localisation/Formatting.h"
 
-namespace GameActions
+#include <algorithm>
+
+using namespace OpenRCT2;
+
+namespace OpenRCT2::GameActions
 {
-    Result::Result(GameActions::Status error, StringId title, StringId message, uint8_t* args /*= nullptr*/)
+    Result::Result(Status error, StringId title, StringId message, uint8_t* args /*= nullptr*/)
         : Error(error)
         , ErrorTitle(title)
         , ErrorMessage(message)
@@ -25,18 +29,18 @@ namespace GameActions
         }
         std::string operator()(const StringId strId) const
         {
-            return FormatStringID(strId, ErrorMessageArgs);
+            return FormatStringIDLegacy(strId, ErrorMessageArgs);
         }
     };
 
-    std::string GameActions::Result::GetErrorTitle() const
+    std::string Result::GetErrorTitle() const
     {
         return std::visit(StringVariantVisitor{ ErrorMessageArgs.data() }, ErrorTitle);
     }
 
-    std::string GameActions::Result::GetErrorMessage() const
+    std::string Result::GetErrorMessage() const
     {
         return std::visit(StringVariantVisitor{ ErrorMessageArgs.data() }, ErrorMessage);
     }
 
-} // namespace GameActions
+} // namespace OpenRCT2::GameActions

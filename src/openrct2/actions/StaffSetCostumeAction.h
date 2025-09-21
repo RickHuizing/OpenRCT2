@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -12,21 +12,24 @@
 #include "../entity/Staff.h"
 #include "GameAction.h"
 
-class StaffSetCostumeAction final : public GameActionBase<GameCommand::SetStaffCostume>
+namespace OpenRCT2::GameActions
 {
-private:
-    EntityId _spriteIndex{ EntityId::GetNull() };
-    EntertainerCostume _costume = EntertainerCostume::Count;
+    class StaffSetCostumeAction final : public GameActionBase<GameCommand::SetStaffCostume>
+    {
+    private:
+        EntityId _spriteIndex{ EntityId::GetNull() };
+        ObjectEntryIndex _costume = OpenRCT2::kObjectEntryIndexNull;
 
-public:
-    StaffSetCostumeAction() = default;
-    StaffSetCostumeAction(EntityId spriteIndex, EntertainerCostume costume);
+    public:
+        StaffSetCostumeAction() = default;
+        StaffSetCostumeAction(EntityId spriteIndex, OpenRCT2::ObjectEntryIndex costume);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

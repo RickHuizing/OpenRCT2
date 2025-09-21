@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,12 +11,12 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "CustomImages.h"
+    #include "CustomImages.h"
 
-#    include <openrct2/Context.h>
-#    include <openrct2/drawing/Image.h>
-#    include <openrct2/scripting/Duktape.hpp>
-#    include <openrct2/sprites.h>
+    #include <openrct2/Context.h>
+    #include <openrct2/SpriteIds.h>
+    #include <openrct2/drawing/Image.h>
+    #include <openrct2/scripting/Duktape.hpp>
 
 namespace OpenRCT2::Scripting
 {
@@ -53,6 +53,14 @@ namespace OpenRCT2::Scripting
             else if (name == "g2")
             {
                 return CreateImageIndexRange(SPR_G2_BEGIN, SPR_G2_END - SPR_G2_BEGIN);
+            }
+            else if (name == "fonts")
+            {
+                return CreateImageIndexRange(SPR_FONTS_BEGIN, SPR_FONTS_END - SPR_FONTS_BEGIN);
+            }
+            else if (name == "tracks")
+            {
+                return CreateImageIndexRange(SPR_TRACKS_BEGIN, SPR_TRACKS_END - SPR_TRACKS_BEGIN);
             }
             else if (name == "csg")
             {
@@ -93,8 +101,8 @@ namespace OpenRCT2::Scripting
 
         void free(const DukValue& dukRange)
         {
-            auto start = dukRange["start"].as_int();
-            auto count = dukRange["count"].as_int();
+            auto start = dukRange["start"].as_uint();
+            auto count = dukRange["count"].as_uint();
 
             ImageList range(start, count);
 

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,53 +9,59 @@
 
 #ifdef _WIN32
 
-// Windows.h needs to be included first
-#    include <windows.h>
+    // Windows.h needs to be included first
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #include "../Diagnostic.h"
 
-// Then the rest
-#    include "../Version.h"
+    #include <cassert>
+    #include <windows.h>
 
-#    include <datetimeapi.h>
-#    include <lmcons.h>
-#    include <memory>
-#    include <shlobj.h>
-#    undef GetEnvironmentVariable
+    // Then the rest
+    #include "../Version.h"
 
-#    include "../Date.h"
-#    include "../OpenRCT2.h"
-#    include "../common.h"
-#    include "../core/Path.hpp"
-#    include "../core/String.hpp"
-#    include "../localisation/Date.h"
-#    include "../localisation/Language.h"
-#    include "Platform.h"
+    #include <datetimeapi.h>
+    #include <lmcons.h>
+    #include <memory>
+    #include <shlobj.h>
+    #undef GetEnvironmentVariable
 
-#    include <cstring>
-#    include <iterator>
-#    include <locale>
+    #include "../Date.h"
+    #include "../OpenRCT2.h"
+    #include "../core/Path.hpp"
+    #include "../core/String.hpp"
+    #include "../localisation/Language.h"
+    #include "Platform.h"
 
-// Native resource IDs
-#    include "../../../resources/resource.h"
+    #include <cstring>
+    #include <format>
+    #include <iterator>
+    #include <locale>
 
-// Enable visual styles
-#    pragma comment(                                                                                                           \
+    // Native resource IDs
+    #include "../../../resources/resource.h"
+
+    // Enable visual styles
+    #pragma comment(                                                                                                           \
         linker,                                                                                                                \
         "\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 // The name of the mutex used to prevent multiple instances of the game from running
-static constexpr wchar_t SINGLE_INSTANCE_MUTEX_NAME[] = L"RollerCoaster Tycoon 2_GSKMUTEX";
+static constexpr wchar_t kSingleInstanceMutexName[] = L"RollerCoaster Tycoon 2_GSKMUTEX";
 
-#    define SOFTWARE_CLASSES L"Software\\Classes"
-#    define MUI_CACHE L"Local Settings\\Software\\Microsoft\\Windows\\Shell\\MuiCache"
+    #define SOFTWARE_CLASSES L"Software\\Classes"
+    #define MUI_CACHE L"Local Settings\\Software\\Microsoft\\Windows\\Shell\\MuiCache"
 
-namespace Platform
+namespace OpenRCT2::Platform
 {
     static std::string WIN32_GetKnownFolderPath(REFKNOWNFOLDERID rfid);
-    static std::string WIN32_GetModuleFileNameW(HMODULE hModule);
+    static std::wstring WIN32_GetModuleFileNameW(HMODULE hModule);
+    static u8string WIN32_GetModuleFileNameUTF8(HMODULE hModule);
 
     std::string GetEnvironmentVariable(std::string_view name)
     {
         std::wstring result;
-        auto wname = String::ToWideChar(name);
+        auto wname = String::toWideChar(name);
         wchar_t wvalue[256];
         auto valueSize = GetEnvironmentVariableW(wname.c_str(), wvalue, static_cast<DWORD>(std::size(wvalue)));
         if (valueSize < std::size(wvalue))
@@ -69,7 +75,7 @@ namespace Platform
             result = wlvalue;
             delete[] wlvalue;
         }
-        return String::ToUtf8(result);
+        return String::toUtf8(result);
     }
 
     static std::string GetHomePathViaEnvironment()
@@ -84,23 +90,23 @@ namespace Platform
         return result;
     }
 
-    std::string GetFolderPath(SPECIAL_FOLDER folder)
+    std::string GetFolderPath(SpecialFolder folder)
     {
         switch (folder)
         {
             // We currently store everything under Documents/OpenRCT2
-            case SPECIAL_FOLDER::USER_CACHE:
-            case SPECIAL_FOLDER::USER_CONFIG:
-            case SPECIAL_FOLDER::USER_DATA:
+            case SpecialFolder::userCache:
+            case SpecialFolder::userConfig:
+            case SpecialFolder::userData:
             {
                 auto path = WIN32_GetKnownFolderPath(FOLDERID_Documents);
                 if (path.empty())
                 {
-                    path = GetFolderPath(SPECIAL_FOLDER::USER_HOME);
+                    path = GetFolderPath(SpecialFolder::userHome);
                 }
                 return path;
             }
-            case SPECIAL_FOLDER::USER_HOME:
+            case SpecialFolder::userHome:
             {
                 auto path = WIN32_GetKnownFolderPath(FOLDERID_Profile);
                 if (path.empty())
@@ -113,7 +119,7 @@ namespace Platform
                 }
                 return path;
             }
-            case SPECIAL_FOLDER::RCT2_DISCORD:
+            case SpecialFolder::rct2Discord:
             {
                 auto path = WIN32_GetKnownFolderPath(FOLDERID_LocalAppData);
                 if (!path.empty())
@@ -151,7 +157,7 @@ namespace Platform
 
     std::string GetCurrentExecutablePath()
     {
-        return WIN32_GetModuleFileNameW(nullptr);
+        return WIN32_GetModuleFileNameUTF8(nullptr);
     }
 
     std::string GetDocsPath()
@@ -183,7 +189,7 @@ namespace Platform
             LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &st, nullptr, date, static_cast<int>(std::size(date)), nullptr);
         if (charsWritten != 0)
         {
-            result = String::ToUtf8(std::wstring_view(date, charsWritten - 1));
+            result = String::toUtf8(std::wstring_view(date, charsWritten - 1));
         }
         return result;
     }
@@ -198,7 +204,7 @@ namespace Platform
             LOCALE_NAME_USER_DEFAULT, 0, &st, nullptr, time, static_cast<int>(std::size(time)));
         if (charsWritten != 0)
         {
-            result = String::ToUtf8(std::wstring_view(time, charsWritten - 1));
+            result = String::toUtf8(std::wstring_view(time, charsWritten - 1));
         }
         return result;
     }
@@ -210,14 +216,14 @@ namespace Platform
         if (hModule != nullptr)
         {
             using RtlGetVersionPtr = long(WINAPI*)(PRTL_OSVERSIONINFOW);
-#    if defined(__GNUC__) && __GNUC__ >= 8
-#        pragma GCC diagnostic push
-#        pragma GCC diagnostic ignored "-Wcast-function-type"
-#    endif
+    #if defined(__GNUC__) && __GNUC__ >= 8
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wcast-function-type"
+    #endif
             auto fn = reinterpret_cast<RtlGetVersionPtr>(GetProcAddress(hModule, "RtlGetVersion"));
-#    if defined(__GNUC__) && __GNUC__ >= 8
-#        pragma GCC diagnostic pop
-#    endif
+    #if defined(__GNUC__) && __GNUC__ >= 8
+        #pragma GCC diagnostic pop
+    #endif
             if (fn != nullptr)
             {
                 RTL_OSVERSIONINFOW rovi{};
@@ -297,24 +303,31 @@ namespace Platform
         wchar_t* wpath = nullptr;
         if (SUCCEEDED(SHGetKnownFolderPath(rfid, KF_FLAG_CREATE, nullptr, &wpath)))
         {
-            path = String::ToUtf8(wpath);
+            path = String::toUtf8(wpath);
         }
         CoTaskMemFree(wpath);
         return path;
     }
 
-    static std::string WIN32_GetModuleFileNameW(HMODULE hModule)
+    static std::wstring WIN32_GetModuleFileNameW(HMODULE hModule)
     {
-        uint32_t wExePathCapacity = MAX_PATH;
-        std::unique_ptr<wchar_t[]> wExePath;
+        uint32_t wExePathCapacity = 128;
+        std::wstring exePath;
+
         uint32_t size;
         do
         {
             wExePathCapacity *= 2;
-            wExePath = std::make_unique<wchar_t[]>(wExePathCapacity);
-            size = GetModuleFileNameW(hModule, wExePath.get(), wExePathCapacity);
+            exePath.resize(wExePathCapacity);
+            size = GetModuleFileNameW(hModule, exePath.data(), wExePathCapacity);
         } while (size >= wExePathCapacity);
-        return String::ToUtf8(wExePath.get());
+        exePath.resize(size);
+        return exePath;
+    }
+
+    static u8string WIN32_GetModuleFileNameUTF8(HMODULE hModule)
+    {
+        return String::toUtf8(WIN32_GetModuleFileNameW(hModule));
     }
 
     u8string StrDecompToPrecomp(u8string_view input)
@@ -352,7 +365,7 @@ namespace Platform
     static std::wstring GetProdIDName(std::string_view extension)
     {
         auto progIdName = std::string(OPENRCT2_NAME) + std::string(extension);
-        auto progIdNameW = String::ToWideChar(progIdName);
+        auto progIdNameW = String::toWideChar(progIdName);
         return progIdNameW;
     }
 
@@ -360,18 +373,13 @@ namespace Platform
         std::string_view extension, std::string_view fileTypeText, std::string_view commandText, std::string_view commandArgs,
         const uint32_t iconIndex)
     {
-        wchar_t exePathW[MAX_PATH];
-        wchar_t dllPathW[MAX_PATH];
+        const std::wstring& exePathW = WIN32_GetModuleFileNameW(nullptr);
+        const std::wstring& dllPathW = WIN32_GetModuleFileNameW(GetDLLModule());
 
-        [[maybe_unused]] int32_t printResult;
-
-        GetModuleFileNameW(nullptr, exePathW, static_cast<DWORD>(std::size(exePathW)));
-        GetModuleFileNameW(GetDLLModule(), dllPathW, static_cast<DWORD>(std::size(dllPathW)));
-
-        auto extensionW = String::ToWideChar(extension);
-        auto fileTypeTextW = String::ToWideChar(fileTypeText);
-        auto commandTextW = String::ToWideChar(commandText);
-        auto commandArgsW = String::ToWideChar(commandArgs);
+        auto extensionW = String::toWideChar(extension);
+        auto fileTypeTextW = String::toWideChar(fileTypeText);
+        auto commandTextW = String::toWideChar(commandText);
+        auto commandArgsW = String::toWideChar(commandArgs);
         auto progIdNameW = GetProdIDName(extension);
 
         HKEY hKey = nullptr;
@@ -406,10 +414,8 @@ namespace Platform
             return false;
         }
         // [hRootKey\OpenRCT2.ext\DefaultIcon]
-        wchar_t szIconW[MAX_PATH];
-        printResult = swprintf_s(szIconW, MAX_PATH, L"\"%s\",%d", dllPathW, iconIndex);
-        assert(printResult >= 0);
-        if (RegSetValueW(hKey, L"DefaultIcon", REG_SZ, szIconW, 0) != ERROR_SUCCESS)
+        const std::wstring szIconW = std::format(L"\"{}\",{}", dllPathW, iconIndex);
+        if (RegSetValueW(hKey, L"DefaultIcon", REG_SZ, szIconW.c_str(), 0) != ERROR_SUCCESS)
         {
             RegCloseKey(hKey);
             RegCloseKey(hRootKey);
@@ -433,10 +439,8 @@ namespace Platform
         }
 
         // [hRootKey\OpenRCT2.sv6\shell\open\command]
-        wchar_t szCommandW[MAX_PATH];
-        printResult = swprintf_s(szCommandW, MAX_PATH, L"\"%s\" %s", exePathW, commandArgsW.c_str());
-        assert(printResult >= 0);
-        if (RegSetValueW(hKey, L"shell\\open\\command", REG_SZ, szCommandW, 0) != ERROR_SUCCESS)
+        const std::wstring szCommandW = std::format(L"\"{}\" {}", exePathW, commandArgsW);
+        if (RegSetValueW(hKey, L"shell\\open\\command", REG_SZ, szCommandW.c_str(), 0) != ERROR_SUCCESS)
         {
             RegCloseKey(hKey);
             RegCloseKey(hRootKey);
@@ -452,7 +456,7 @@ namespace Platform
         if (RegOpenKeyW(HKEY_CURRENT_USER, SOFTWARE_CLASSES, &hRootKey) == ERROR_SUCCESS)
         {
             // [hRootKey\.ext]
-            RegDeleteTreeW(hRootKey, String::ToWideChar(extension).c_str());
+            RegDeleteTreeW(hRootKey, String::toWideChar(extension).c_str());
 
             // [hRootKey\OpenRCT2.ext]
             auto progIdName = GetProdIDName(extension);
@@ -499,7 +503,7 @@ namespace Platform
     uint64_t GetLastModified(std::string_view path)
     {
         uint64_t lastModified = 0;
-        auto pathW = String::ToWideChar(path);
+        auto pathW = String::toWideChar(path);
         auto hFile = CreateFileW(pathW.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
         if (hFile != INVALID_HANDLE_VALUE)
         {
@@ -517,7 +521,7 @@ namespace Platform
     uint64_t GetFileSize(std::string_view path)
     {
         uint64_t size = 0;
-        auto pathW = String::ToWideChar(path);
+        auto pathW = String::toWideChar(path);
         WIN32_FILE_ATTRIBUTE_DATA attributes;
         if (GetFileAttributesExW(pathW.c_str(), GetFileExInfoStandard, &attributes) != FALSE)
         {
@@ -565,7 +569,7 @@ namespace Platform
         DWORD usernameLength = UNLEN + 1;
         if (GetUserNameW(usernameW, &usernameLength))
         {
-            result = String::ToUtf8(usernameW);
+            result = String::toUtf8(usernameW);
         }
         return result;
     }
@@ -592,6 +596,7 @@ namespace Platform
             { L"es", LANGUAGE_SPANISH },
             { L"fr", LANGUAGE_FRENCH },
             { L"fr-CA", LANGUAGE_FRENCH_CA },
+            { L"gl", LANGUAGE_GALICIAN },
             { L"it", LANGUAGE_ITALIAN },
             { L"ja", LANGUAGE_JAPANESE },
             { L"ko", LANGUAGE_KOREAN },
@@ -604,6 +609,7 @@ namespace Platform
             { L"fi", LANGUAGE_FINNISH },
             { L"sv", LANGUAGE_SWEDISH },
             { L"tr", LANGUAGE_TURKISH },
+            { L"uk", LANGUAGE_UKRAINIAN },
             { L"vi", LANGUAGE_VIETNAMESE },
         };
         static_assert(
@@ -627,7 +633,7 @@ namespace Platform
             return Platform::GetCurrencyValue(nullptr);
         }
 
-        return Platform::GetCurrencyValue(String::ToUtf8(currCode).c_str());
+        return Platform::GetCurrencyValue(String::toUtf8(currCode).c_str());
     }
 
     MeasurementFormat GetLocaleMeasurementFormat()
@@ -753,7 +759,7 @@ namespace Platform
         result = RegQueryValueExW(hKey, L"SteamPath", nullptr, &type, reinterpret_cast<LPBYTE>(wSteamPath), &size);
         if (result == ERROR_SUCCESS)
         {
-            auto utf8SteamPath = String::ToUtf8(wSteamPath);
+            auto utf8SteamPath = String::toUtf8(wSteamPath);
             outPath = Path::Combine(utf8SteamPath, u8"steamapps", u8"common");
         }
         free(wSteamPath);
@@ -770,7 +776,7 @@ namespace Platform
     bool LockSingleInstance()
     {
         // Check if operating system mutex exists
-        HANDLE mutex = CreateMutexW(nullptr, FALSE, SINGLE_INSTANCE_MUTEX_NAME);
+        HANDLE mutex = CreateMutexW(nullptr, FALSE, kSingleInstanceMutexName);
         if (mutex == nullptr)
         {
             LOG_ERROR("unable to create mutex");
@@ -800,10 +806,15 @@ namespace Platform
         return u8"Rollercoaster Tycoon 2";
     }
 
+    u8string GetRCTClassicSteamDir()
+    {
+        return u8"RollerCoaster Tycoon Classic";
+    }
+
     time_t FileGetModifiedTime(u8string_view path)
     {
         WIN32_FILE_ATTRIBUTE_DATA data{};
-        auto wPath = String::ToWideChar(path);
+        auto wPath = String::toWideChar(path);
         auto result = GetFileAttributesExW(wPath.c_str(), GetFileExInfoStandard, &data);
         if (result != FALSE)
         {
@@ -851,23 +862,22 @@ namespace Platform
                     if (RegSetKeyValueW(hClassKey, nullptr, L"URL Protocol", REG_SZ, "", 0) == ERROR_SUCCESS)
                     {
                         // [hRootKey\openrct2\shell\open\command]
-                        wchar_t exePath[MAX_PATH];
-                        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-
-                        wchar_t buffer[512];
-                        swprintf_s(buffer, std::size(buffer), L"\"%s\" handle-uri \"%%1\"", exePath);
-                        if (RegSetValueW(hClassKey, L"shell\\open\\command", REG_SZ, buffer, 0) == ERROR_SUCCESS)
+                        const std::wstring& exePathW = WIN32_GetModuleFileNameW(nullptr);
+                        const std::wstring handle_uri_string = std::format(L"\"{}\" handle-uri \"%1\"", exePathW);
+                        if (RegSetValueW(hClassKey, L"shell\\open\\command", REG_SZ, handle_uri_string.c_str(), 0)
+                            == ERROR_SUCCESS)
                         {
                             // Not compulsory, but gives the application a nicer name
                             // [HKEY_CURRENT_USER\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache]
                             HKEY hMuiCacheKey;
                             if (RegCreateKeyW(hRootKey, MUI_CACHE, &hMuiCacheKey) == ERROR_SUCCESS)
                             {
-                                swprintf_s(buffer, std::size(buffer), L"%s.FriendlyAppName", exePath);
+                                const std::wstring friendly_apl_name = std::format(L"{}.FriendlyAppName", exePathW);
                                 // mingw-w64 used to define RegSetKeyValueW's signature incorrectly
                                 // You need at least mingw-w64 5.0 including this commit:
                                 //   https://sourceforge.net/p/mingw-w64/mingw-w64/ci/da9341980a4b70be3563ac09b5927539e7da21f7/
-                                RegSetKeyValueW(hMuiCacheKey, nullptr, buffer, REG_SZ, L"OpenRCT2", sizeof(L"OpenRCT2"));
+                                RegSetKeyValueW(
+                                    hMuiCacheKey, nullptr, friendly_apl_name.c_str(), REG_SZ, L"OpenRCT2", sizeof(L"OpenRCT2"));
                             }
 
                             LOG_VERBOSE("URI protocol setup successful");
@@ -882,6 +892,38 @@ namespace Platform
         return false;
     }
 
-} // namespace Platform
+    std::vector<std::string_view> GetSearchablePathsRCT1()
+    {
+        return {
+            R"(C:\Program Files\Steam\steamapps\common\Rollercoaster Tycoon Deluxe)",
+            R"(C:\Program Files (x86)\Steam\steamapps\common\Rollercoaster Tycoon Deluxe)",
+            R"(C:\GOG Games\RollerCoaster Tycoon Deluxe)",
+            R"(C:\Program Files\GalaxyClient\Games\RollerCoaster Tycoon Deluxe)",
+            R"(C:\Program Files (x86)\GalaxyClient\Games\RollerCoaster Tycoon Deluxe)",
+            R"(C:\Program Files\Hasbro Interactive\RollerCoaster Tycoon)",
+            R"(C:\Program Files (x86)\Hasbro Interactive\RollerCoaster Tycoon)",
+        };
+    }
+
+    std::vector<std::string_view> GetSearchablePathsRCT2()
+    {
+        return {
+            R"(C:\Program Files\Steam\steamapps\common\Rollercoaster Tycoon 2)",
+            R"(C:\Program Files (x86)\Steam\steamapps\common\Rollercoaster Tycoon 2)",
+            R"(C:\GOG Games\RollerCoaster Tycoon 2 Triple Thrill Pack)",
+            R"(C:\Program Files\GalaxyClient\Games\RollerCoaster Tycoon 2 Triple Thrill Pack)",
+            R"(C:\Program Files (x86)\GalaxyClient\Games\RollerCoaster Tycoon 2 Triple Thrill Pack)",
+            R"(C:\Program Files\Atari\RollerCoaster Tycoon 2)",
+            R"(C:\Program Files (x86)\Atari\RollerCoaster Tycoon 2)",
+            R"(C:\Program Files\Infogrames\RollerCoaster Tycoon 2)",
+            R"(C:\Program Files (x86)\Infogrames\RollerCoaster Tycoon 2)",
+            R"(C:\Program Files\Infogrames Interactive\RollerCoaster Tycoon 2)",
+            R"(C:\Program Files (x86)\Infogrames Interactive\RollerCoaster Tycoon 2)",
+            R"(C:\Program Files\Steam\steamapps\common\RollerCoaster Tycoon Classic)",
+            R"(C:\Program Files (x86)\Steam\steamapps\common\RollerCoaster Tycoon Classic)",
+        };
+    }
+
+} // namespace OpenRCT2::Platform
 
 #endif

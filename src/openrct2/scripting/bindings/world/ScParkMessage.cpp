@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,21 +9,18 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "ScParkMessage.hpp"
+    #include "ScParkMessage.hpp"
 
-#    include "../../../Context.h"
-#    include "../../../GameState.h"
-#    include "../../../common.h"
-#    include "../../../core/String.hpp"
-#    include "../../../entity/Peep.h"
-#    include "../../../management/Finance.h"
-#    include "../../../management/NewsItem.h"
-#    include "../../../windows/Intent.h"
-#    include "../../../world/Park.h"
-#    include "../../Duktape.hpp"
-#    include "../../ScriptEngine.h"
-
-#    include <algorithm>
+    #include "../../../Context.h"
+    #include "../../../GameState.h"
+    #include "../../../core/String.hpp"
+    #include "../../../entity/Peep.h"
+    #include "../../../management/Finance.h"
+    #include "../../../management/NewsItem.h"
+    #include "../../../windows/Intent.h"
+    #include "../../../world/Park.h"
+    #include "../../Duktape.hpp"
+    #include "../../ScriptEngine.h"
 
 namespace OpenRCT2::Scripting
 {
@@ -46,7 +43,7 @@ namespace OpenRCT2::Scripting
 
     News::Item* ScParkMessage::GetMessage() const
     {
-        return &gNewsItems[_index];
+        return &getGameState().newsItems[_index];
     }
 
     bool ScParkMessage::isArchived_get() const
@@ -59,7 +56,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            return msg->MonthYear;
+            return msg->monthYear;
         }
         return 0;
     }
@@ -70,7 +67,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            msg->MonthYear = value;
+            msg->monthYear = value;
         }
     }
 
@@ -79,7 +76,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            return msg->Day;
+            return msg->day;
         }
         return 0;
     }
@@ -90,7 +87,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            msg->Day = value;
+            msg->day = value;
         }
     }
 
@@ -99,7 +96,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            return msg->Ticks;
+            return msg->ticks;
         }
         return 0;
     }
@@ -110,7 +107,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            msg->Ticks = value;
+            msg->ticks = value;
         }
     }
 
@@ -119,7 +116,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            return GetParkMessageType(msg->Type);
+            return GetParkMessageType(msg->type);
         }
         return {};
     }
@@ -130,7 +127,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            msg->Type = GetParkMessageType(value);
+            msg->type = GetParkMessageType(value);
         }
     }
 
@@ -139,7 +136,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            return msg->Assoc;
+            return msg->assoc;
         }
         return 0;
     }
@@ -150,7 +147,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            msg->Assoc = value;
+            msg->assoc = value;
         }
     }
 
@@ -159,7 +156,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            return msg->Text;
+            return msg->text;
         }
         return {};
     }
@@ -170,7 +167,7 @@ namespace OpenRCT2::Scripting
         auto msg = GetMessage();
         if (msg != nullptr)
         {
-            msg->Text = value;
+            msg->text = value;
         }
     }
 

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,101 +9,103 @@
 
 #pragma once
 
-#include "../common.h"
-
 #include <memory>
 #include <string>
 #include <vector>
 
-enum class SocketStatus
+namespace OpenRCT2::Network
 {
-    Closed,
-    Waiting,
-    Resolving,
-    Connecting,
-    Connected,
-    Listening,
-};
-
-enum class NetworkReadPacket : int32_t
-{
-    Success,
-    NoData,
-    MoreData,
-    Disconnected
-};
-
-/**
- * Represents an address and port.
- */
-struct INetworkEndpoint
-{
-    virtual ~INetworkEndpoint()
+    enum class SocketStatus
     {
-    }
+        closed,
+        waiting,
+        resolving,
+        connecting,
+        connected,
+        listening,
+    };
 
-    virtual std::string GetHostname() const abstract;
-};
+    enum class ReadPacket : int32_t
+    {
+        success,
+        noData,
+        moreData,
+        disconnected
+    };
 
-/**
- * Represents a TCP socket / connection or listener.
- */
-struct ITcpSocket
-{
-public:
-    virtual ~ITcpSocket() = default;
+    /**
+     * Represents an address and port.
+     */
+    struct INetworkEndpoint
+    {
+        virtual ~INetworkEndpoint()
+        {
+        }
 
-    virtual SocketStatus GetStatus() const abstract;
-    virtual const char* GetError() const abstract;
-    virtual const char* GetHostName() const abstract;
-    virtual std::string GetIpAddress() const abstract;
+        virtual std::string GetHostname() const = 0;
+    };
 
-    virtual void Listen(uint16_t port) abstract;
-    virtual void Listen(const std::string& address, uint16_t port) abstract;
-    [[nodiscard]] virtual std::unique_ptr<ITcpSocket> Accept() abstract;
+    /**
+     * Represents a TCP socket / connection or listener.
+     */
+    struct ITcpSocket
+    {
+    public:
+        virtual ~ITcpSocket() = default;
 
-    virtual void Connect(const std::string& address, uint16_t port) abstract;
-    virtual void ConnectAsync(const std::string& address, uint16_t port) abstract;
+        virtual SocketStatus GetStatus() const = 0;
+        virtual const char* GetError() const = 0;
+        virtual const char* GetHostName() const = 0;
+        virtual std::string GetIpAddress() const = 0;
 
-    virtual size_t SendData(const void* buffer, size_t size) abstract;
-    virtual NetworkReadPacket ReceiveData(void* buffer, size_t size, size_t* sizeReceived) abstract;
+        virtual void Listen(uint16_t port) = 0;
+        virtual void Listen(const std::string& address, uint16_t port) = 0;
+        [[nodiscard]] virtual std::unique_ptr<ITcpSocket> Accept() = 0;
 
-    virtual void SetNoDelay(bool noDelay) abstract;
+        virtual void Connect(const std::string& address, uint16_t port) = 0;
+        virtual void ConnectAsync(const std::string& address, uint16_t port) = 0;
 
-    virtual void Finish() abstract;
-    virtual void Disconnect() abstract;
-    virtual void Close() abstract;
-};
+        virtual size_t SendData(const void* buffer, size_t size) = 0;
+        virtual ReadPacket ReceiveData(void* buffer, size_t size, size_t* sizeReceived) = 0;
 
-/**
- * Represents a UDP socket / listener.
- */
-struct IUdpSocket
-{
-public:
-    virtual ~IUdpSocket() = default;
+        virtual void SetNoDelay(bool noDelay) = 0;
 
-    virtual SocketStatus GetStatus() const abstract;
-    virtual const char* GetError() const abstract;
-    virtual const char* GetHostName() const abstract;
+        virtual void Finish() = 0;
+        virtual void Disconnect() = 0;
+        virtual void Close() = 0;
+    };
 
-    virtual void Listen(uint16_t port) abstract;
-    virtual void Listen(const std::string& address, uint16_t port) abstract;
+    /**
+     * Represents a UDP socket / listener.
+     */
+    struct IUdpSocket
+    {
+    public:
+        virtual ~IUdpSocket() = default;
 
-    virtual size_t SendData(const std::string& address, uint16_t port, const void* buffer, size_t size) abstract;
-    virtual size_t SendData(const INetworkEndpoint& destination, const void* buffer, size_t size) abstract;
-    virtual NetworkReadPacket ReceiveData(
-        void* buffer, size_t size, size_t* sizeReceived, std::unique_ptr<INetworkEndpoint>* sender) abstract;
+        virtual SocketStatus GetStatus() const = 0;
+        virtual const char* GetError() const = 0;
+        virtual const char* GetHostName() const = 0;
 
-    virtual void Close() abstract;
-};
+        virtual void Listen(uint16_t port) = 0;
+        virtual void Listen(const std::string& address, uint16_t port) = 0;
 
-[[nodiscard]] std::unique_ptr<ITcpSocket> CreateTcpSocket();
-[[nodiscard]] std::unique_ptr<IUdpSocket> CreateUdpSocket();
-[[nodiscard]] std::vector<std::unique_ptr<INetworkEndpoint>> GetBroadcastAddresses();
+        virtual size_t SendData(const std::string& address, uint16_t port, const void* buffer, size_t size) = 0;
+        virtual size_t SendData(const INetworkEndpoint& destination, const void* buffer, size_t size) = 0;
+        virtual ReadPacket ReceiveData(
+            void* buffer, size_t size, size_t* sizeReceived, std::unique_ptr<INetworkEndpoint>* sender)
+            = 0;
 
-namespace Convert
+        virtual void Close() = 0;
+    };
+
+    [[nodiscard]] std::unique_ptr<ITcpSocket> CreateTcpSocket();
+    [[nodiscard]] std::unique_ptr<IUdpSocket> CreateUdpSocket();
+    [[nodiscard]] std::vector<std::unique_ptr<INetworkEndpoint>> GetBroadcastAddresses();
+} // namespace OpenRCT2::Network
+
+namespace OpenRCT2::Convert
 {
     uint16_t HostToNetwork(uint16_t value);
     uint16_t NetworkToHost(uint16_t value);
-} // namespace Convert
+} // namespace OpenRCT2::Convert

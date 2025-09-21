@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,18 +11,16 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "../../../Context.h"
-#    include "../../../common.h"
-#    include "../../../entity/EntityList.h"
-#    include "../../../entity/EntityRegistry.h"
-#    include "../../../entity/Peep.h"
-#    include "../../../util/Util.h"
-#    include "../../Duktape.hpp"
-#    include "../../ScriptEngine.h"
+    #include "../../../Context.h"
+    #include "../../../GameState.h"
+    #include "../../../entity/EntityList.h"
+    #include "../../../entity/EntityRegistry.h"
+    #include "../../../entity/Peep.h"
+    #include "../../Duktape.hpp"
+    #include "../../ScriptEngine.h"
 
-#    include <algorithm>
-#    include <string_view>
-#    include <unordered_map>
+    #include <string_view>
+    #include <unordered_map>
 
 namespace OpenRCT2::Scripting
 {
@@ -61,11 +59,11 @@ namespace OpenRCT2::Scripting
                     case EntityType::Vehicle:
                         return "car";
                     case EntityType::Guest:
-                        if (targetApiVersion <= API_VERSION_33_PEEP_DEPRECATION)
+                        if (targetApiVersion <= kApiVersionPeepDeprecation)
                             return "peep";
                         return "guest";
                     case EntityType::Staff:
-                        if (targetApiVersion <= API_VERSION_33_PEEP_DEPRECATION)
+                        if (targetApiVersion <= kApiVersionPeepDeprecation)
                             return "peep";
                         return "staff";
                     case EntityType::SteamParticle:
@@ -183,7 +181,7 @@ namespace OpenRCT2::Scripting
                     case EntityType::Balloon:
                     case EntityType::Duck:
                     case EntityType::Litter:
-                        EntityRemove(entity);
+                        getGameState().entities.EntityRemove(entity);
                         break;
                     case EntityType::Null:
                         break;
@@ -195,7 +193,7 @@ namespace OpenRCT2::Scripting
 
         EntityBase* GetEntity() const
         {
-            return ::GetEntity(_id);
+            return OpenRCT2::getGameState().entities.GetEntity(_id);
         }
 
     public:

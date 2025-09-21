@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,44 +11,47 @@
 
 #include "GameAction.h"
 
-enum class ModifyGroupType : uint8_t
+namespace OpenRCT2::GameActions
 {
-    AddGroup,
-    RemoveGroup,
-    SetPermissions,
-    SetName,
-    SetDefault,
-    Count
-};
+    enum class ModifyGroupType : uint8_t
+    {
+        AddGroup,
+        RemoveGroup,
+        SetPermissions,
+        SetName,
+        SetDefault,
+        Count
+    };
 
-enum class PermissionState : uint8_t
-{
-    Toggle,
-    SetAll,
-    ClearAll,
-    Count
-};
+    enum class PermissionState : uint8_t
+    {
+        Toggle,
+        SetAll,
+        ClearAll,
+        Count
+    };
 
-class NetworkModifyGroupAction final : public GameActionBase<GameCommand::ModifyGroups>
-{
-private:
-    ModifyGroupType _type{ ModifyGroupType::Count };
-    uint8_t _groupId{ std::numeric_limits<uint8_t>::max() };
-    std::string _name;
-    uint32_t _permissionIndex{ std::numeric_limits<uint32_t>::max() };
-    PermissionState _permissionState{ PermissionState::Count };
+    class NetworkModifyGroupAction final : public GameActionBase<GameCommand::ModifyGroups>
+    {
+    private:
+        ModifyGroupType _type{ ModifyGroupType::Count };
+        uint8_t _groupId{ std::numeric_limits<uint8_t>::max() };
+        std::string _name;
+        uint32_t _permissionIndex{ std::numeric_limits<uint32_t>::max() };
+        PermissionState _permissionState{ PermissionState::Count };
 
-public:
-    NetworkModifyGroupAction() = default;
-    NetworkModifyGroupAction(
-        ModifyGroupType type, uint8_t groupId = std::numeric_limits<uint8_t>::max(), const std::string name = "",
-        uint32_t permissionIndex = 0, PermissionState permissionState = PermissionState::Count);
+    public:
+        NetworkModifyGroupAction() = default;
+        NetworkModifyGroupAction(
+            ModifyGroupType type, uint8_t groupId = std::numeric_limits<uint8_t>::max(), const std::string name = "",
+            uint32_t permissionIndex = 0, PermissionState permissionState = PermissionState::Count);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

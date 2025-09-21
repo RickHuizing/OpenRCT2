@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,29 +11,38 @@
 
 #include "GameAction.h"
 
-class RideDemolishAction final : public GameActionBase<GameCommand::DemolishRide>
+namespace OpenRCT2::GameActions
 {
-private:
-    RideId _rideIndex{ RideId::GetNull() };
-    uint8_t _modifyType{ RIDE_MODIFY_DEMOLISH };
+    enum class RideModifyType : uint8_t
+    {
+        demolish,
+        renew,
+    };
 
-public:
-    RideDemolishAction() = default;
-    RideDemolishAction(RideId rideIndex, uint8_t modifyType);
+    class RideDemolishAction final : public GameActionBase<GameCommand::DemolishRide>
+    {
+    private:
+        RideId _rideIndex{ RideId::GetNull() };
+        RideModifyType _modifyType{ RideModifyType::demolish };
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+    public:
+        RideDemolishAction() = default;
+        RideDemolishAction(RideId rideIndex, RideModifyType modifyType);
 
-    uint32_t GetCooldownTime() const override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        uint32_t GetCooldownTime() const final;
 
-private:
-    GameActions::Result DemolishRide(Ride& ride) const;
-    money64 MazeRemoveTrack(const CoordsXYZD& coords) const;
-    money64 DemolishTracks() const;
-    GameActions::Result RefurbishRide(Ride& ride) const;
-    money64 GetRefurbishPrice(const Ride& ride) const;
-    money64 GetRefundPrice(const Ride& ride) const;
-};
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+
+    private:
+        Result DemolishRide(GameState_t& gameState, Ride& ride) const;
+        money64 MazeRemoveTrack(GameState_t& gameState, const CoordsXYZD& coords) const;
+        money64 DemolishTracks(GameState_t& gameState) const;
+        Result RefurbishRide(GameState_t& gameState, Ride& ride) const;
+        money64 GetRefurbishPrice(const Ride& ride) const;
+        money64 GetRefundPrice(const Ride& ride) const;
+    };
+} // namespace OpenRCT2::GameActions

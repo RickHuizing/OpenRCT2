@@ -3,18 +3,22 @@
 #include "../Cheats.h"
 #include "../Game.h"
 #include "../GameState.h"
+#include "../SpriteIds.h"
 #include "../core/DataSerialiser.h"
 #include "../localisation/StringIds.h"
 #include "../paint/Paint.h"
 #include "../profiling/Profiling.h"
-#include "../sprites.h"
+#include "../world/Footpath.h"
 #include "../world/Map.h"
 #include "EntityList.h"
 #include "EntityRegistry.h"
 
+#include <sfl/small_vector.hpp>
+
 using namespace OpenRCT2;
 
-template<> bool EntityBase::Is<Litter>() const
+template<>
+bool EntityBase::Is<Litter>() const
 {
     return Type == EntityType::Litter;
 }
@@ -35,7 +39,7 @@ static bool IsLocationLitterable(const CoordsXYZ& mapPos)
             continue;
 
         int32_t pathZ = tileElement->GetBaseZ();
-        if (pathZ < mapPos.z || pathZ >= mapPos.z + PATH_CLEARANCE)
+        if (pathZ < mapPos.z || pathZ >= mapPos.z + kPathClearance)
             continue;
 
         return !TileElementIsUnderground(tileElement);
@@ -49,7 +53,8 @@ static bool IsLocationLitterable(const CoordsXYZ& mapPos)
  */
 void Litter::Create(const CoordsXYZD& litterPos, Type type)
 {
-    if (gCheatsDisableLittering)
+    auto& gameState = getGameState();
+    if (gameState.cheats.disableLittering)
         return;
 
     auto offsetLitterPos = litterPos
@@ -59,7 +64,7 @@ void Litter::Create(const CoordsXYZD& litterPos, Type type)
     if (!IsLocationLitterable(offsetLitterPos))
         return;
 
-    if (GetEntityListCount(EntityType::Litter) >= 500)
+    if (gameState.entities.GetEntityListCount(EntityType::Litter) >= 500)
     {
         Litter* newestLitter = nullptr;
         uint32_t newestLitterCreationTick = 0;
@@ -75,11 +80,11 @@ void Litter::Create(const CoordsXYZD& litterPos, Type type)
         if (newestLitter != nullptr)
         {
             newestLitter->Invalidate();
-            EntityRemove(newestLitter);
+            gameState.entities.EntityRemove(newestLitter);
         }
     }
 
-    Litter* litter = CreateEntity<Litter>();
+    Litter* litter = gameState.entities.CreateEntity<Litter>();
     if (litter == nullptr)
         return;
 
@@ -89,7 +94,7 @@ void Litter::Create(const CoordsXYZD& litterPos, Type type)
     litter->SpriteData.HeightMax = 3;
     litter->SubType = type;
     litter->MoveTo(offsetLitterPos);
-    litter->creationTick = GetGameState().CurrentTicks;
+    litter->creationTick = gameState.currentTicks;
 }
 
 /**
@@ -98,7 +103,9 @@ void Litter::Create(const CoordsXYZD& litterPos, Type type)
  */
 void Litter::RemoveAt(const CoordsXYZ& litterPos)
 {
-    std::vector<Litter*> removals;
+    // There can be a lot of litter entities on the same tile, avoid heap allocations
+    // by having the first 512 stored in a small_vector which is on the stack.
+    sfl::small_vector<Litter*, 512> removals;
     for (auto litter : EntityTileList<Litter>(litterPos))
     {
         if (abs(litter->z - litterPos.z) <= 16)
@@ -112,7 +119,7 @@ void Litter::RemoveAt(const CoordsXYZ& litterPos)
     for (auto* litter : removals)
     {
         litter->Invalidate();
-        EntityRemove(litter);
+        getGameState().entities.EntityRemove(litter);
     }
 }
 
@@ -134,13 +141,13 @@ static const StringId litterNames[12] = {
 StringId Litter::GetName() const
 {
     if (EnumValue(SubType) >= std::size(litterNames))
-        return STR_NONE;
+        return kStringIdNone;
     return litterNames[EnumValue(SubType)];
 }
 
 uint32_t Litter::GetAge() const
 {
-    return GetGameState().CurrentTicks - creationTick;
+    return getGameState().currentTicks - creationTick;
 }
 
 void Litter::Serialise(DataSerialiser& stream)
@@ -158,7 +165,7 @@ struct LitterSprite
 };
 
 /** rct2: 0x0097EF6C */
-static constexpr LitterSprite _litterSprites[] = {
+static constexpr LitterSprite kLitterSprites[] = {
     { SPR_LITTER_SICK, 0x1 },
     { SPR_LITTER_SICK_ALT, 0x1 },
     { SPR_LITTER_EMPTY_CAN, 0x1 },
@@ -177,17 +184,17 @@ void Litter::Paint(PaintSession& session, int32_t imageDirection) const
 {
     PROFILED_FUNCTION();
 
-    DrawPixelInfo& dpi = session.DPI;
-    if (dpi.zoom_level > ZoomLevel{ 0 })
+    RenderTarget& rt = session.DPI;
+    if (rt.zoom_level > ZoomLevel{ 0 })
         return; // If zoomed at all no litter drawn
 
     // litter has no sprite direction so remove that
     imageDirection >>= 3;
     // Some litter types have only 1 direction so remove
     // anything that isn't required.
-    imageDirection &= _litterSprites[EnumValue(SubType)].direction_mask;
+    imageDirection &= kLitterSprites[EnumValue(SubType)].direction_mask;
 
-    uint32_t image_id = imageDirection + _litterSprites[EnumValue(SubType)].base_id;
+    uint32_t image_id = imageDirection + kLitterSprites[EnumValue(SubType)].base_id;
 
     // In the following call to PaintAddImageAsParent, we add 4 (instead of 2) to the
     // bound_box_offset_z to make sure litter is drawn on top of railways

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,13 +9,14 @@
 
 #pragma once
 
-#include "common.h"
-
 #include <memory>
 #include <set>
 #include <string>
 
-class GameAction;
+namespace OpenRCT2::GameActions
+{
+    class GameAction;
+}
 
 namespace OpenRCT2
 {
@@ -50,7 +51,7 @@ namespace OpenRCT2
         virtual bool IsNormalising() const = 0;
         virtual bool ShouldDisplayNotice() const = 0;
 
-        virtual void AddGameAction(uint32_t tick, const GameAction* action) = 0;
+        virtual void AddGameAction(uint32_t tick, const GameActions::GameAction* action) = 0;
 
         virtual bool StartRecording(
             const std::string& name, uint32_t maxTicks = k_MaxReplayTicks, RecordType rt = RecordType::NORMAL)

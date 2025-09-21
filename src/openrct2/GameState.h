@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,90 +9,103 @@
 
 #pragma once
 
+#include "Cheats.h"
 #include "Date.h"
+#include "Editor.h"
+#include "Limits.h"
+#include "core/Random.hpp"
+#include "entity/EntityRegistry.h"
+#include "interface/ZoomLevel.h"
 #include "management/Finance.h"
-#include "scenario/Scenario.h"
+#include "management/NewsItem.h"
+#include "ride/Ride.h"
+#include "ride/RideRatings.h"
+#include "scenario/ScenarioOptions.h"
 #include "world/Banner.h"
 #include "world/Climate.h"
 #include "world/Location.hpp"
+#include "world/ParkData.h"
+#include "world/ScenerySelection.h"
 
 #include <array>
-#include <chrono>
 #include <memory>
-#include <unordered_map>
 #include <vector>
 
 namespace OpenRCT2
 {
-    class Park;
+    using PeepSpawn = CoordsXYZD;
 
     struct GameState_t
     {
-        uint32_t CurrentTicks{};
-        uint64_t ParkFlags;
-        uint16_t ParkRating;
-        money64 ParkEntranceFee;
-        std::vector<CoordsXYZD> ParkEntrances;
-        uint32_t ParkSize;
-        money64 ParkValue;
-        money64 ParkValueHistory[FINANCE_GRAPH_SIZE];
-        ClimateType Climate;
-        ClimateState ClimateCurrent;
-        ClimateState ClimateNext;
-        uint16_t ClimateUpdateTimer;
-        money64 Cash;
-        money64 InitialCash;
-        money64 GuestInitialCash;
-        uint8_t GuestInitialHappiness;
-        uint8_t GuestInitialHunger;
-        uint8_t GuestInitialThirst;
-        uint32_t NextGuestNumber;
-        money64 WeeklyProfitAverageDividend;
-        uint16_t WeeklyProfitAverageDivisor;
-        money64 WeeklyProfitHistory[FINANCE_GRAPH_SIZE];
-        Objective ScenarioObjective;
-        uint16_t ScenarioParkRatingWarningDays;
-        money64 ScenarioCompletedCompanyValue;
-        money64 ScenarioCompanyValueRecord;
+        Park::ParkData park{};
+        Scenario::Options scenarioOptions;
+        std::string pluginStorage;
+        uint32_t currentTicks{};
+        Date date;
 
-        SCENARIO_CATEGORY ScenarioCategory;
-        std::string ScenarioName;
-        std::string ScenarioDetails;
-        std::string ScenarioCompletedBy;
-        std::vector<Banner> Banners;
+        WeatherState weatherCurrent;
+        WeatherState weatherNext;
+        uint16_t weatherUpdateTimer;
+
+        uint32_t nextGuestNumber;
+
+        uint16_t scenarioParkRatingWarningDays;
+        money64 scenarioCompletedCompanyValue;
+        money64 scenarioCompanyValueRecord;
+        random_engine_t scenarioRand;
+
+        TileCoordsXY mapSize;
+
+        EditorStep editorStep;
+
+        std::string scenarioCompletedBy;
+        std::string scenarioFileName;
+
+        std::vector<Banner> banners;
+
+        EntityRegistry entities;
+
+        // Ride storage for all the rides in the park, rides with RideId::Null are considered free.
+        std::array<Ride, Limits::kMaxRidesInPark> rides{};
+        size_t ridesEndOfUsedRange{};
+        RideRating::UpdateStates rideRatingUpdateStates;
+        std::vector<TileElement> tileElements;
+
+        std::vector<ScenerySelection> restrictedScenery;
+
+        std::vector<PeepSpawn> peepSpawns;
+
+        News::ItemQueues newsItems;
+
+        uint16_t grassSceneryTileLoopPosition;
+        CoordsXY widePathTileLoopPosition;
+
+        uint8_t researchFundingLevel;
+        uint8_t researchPriorities;
+        uint16_t researchProgress;
+        uint8_t researchProgressStage;
+        uint8_t researchExpectedMonth;
+        uint8_t researchExpectedDay;
+        std::optional<ResearchItem> researchLastItem;
+        std::optional<ResearchItem> researchNextItem;
+        std::vector<ResearchItem> researchItemsUninvented;
+        std::vector<ResearchItem> researchItemsInvented;
+        uint8_t researchUncompletedCategories;
+
+        ScreenCoordsXY savedView;
+        uint8_t savedViewRotation;
+        ZoomLevel savedViewZoom;
+
+        ObjectEntryIndex lastEntranceStyle;
+
+        CheatsState cheats;
     };
 
-    GameState_t& GetGameState();
+    GameState_t& getGameState();
+    void swapGameState(std::unique_ptr<GameState_t>& otherState);
 
-    /**
-     * Class to update the state of the map and park.
-     */
-    class GameState final
-    {
-    private:
-        std::unique_ptr<Park> _park;
-        Date _date;
+    void gameStateInitAll(GameState_t& gameState, const TileCoordsXY& mapSize);
+    void gameStateTick();
+    void gameStateUpdateLogic();
 
-    public:
-        GameState();
-        GameState(const GameState&) = delete;
-
-        Date& GetDate()
-        {
-            return _date;
-        }
-        Park& GetPark()
-        {
-            return *_park;
-        }
-
-        void InitAll(const TileCoordsXY& mapSize);
-        void Tick();
-        void UpdateLogic();
-        void SetDate(Date newDate);
-        void ResetDate();
-
-    private:
-        void CreateStateSnapshot();
-    };
 } // namespace OpenRCT2

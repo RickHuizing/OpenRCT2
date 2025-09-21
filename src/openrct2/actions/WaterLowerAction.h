@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,24 +11,27 @@
 
 #include "GameAction.h"
 
-class WaterLowerAction final : public GameActionBase<GameCommand::LowerWater>
+namespace OpenRCT2::GameActions
 {
-private:
-    MapRange _range;
+    class WaterLowerAction final : public GameActionBase<GameCommand::LowerWater>
+    {
+    private:
+        MapRange _range;
 
-public:
-    WaterLowerAction() = default;
-    WaterLowerAction(MapRange range);
+    public:
+        WaterLowerAction() = default;
+        WaterLowerAction(MapRange range);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    GameActions::Result QueryExecute(bool isExecuting) const;
-    uint8_t GetLowestHeight(const MapRange& validRange) const;
-};
+    private:
+        Result QueryExecute(GameState_t& gameState, bool isExecuting) const;
+        uint8_t GetLowestHeight(const GameState_t& gameState, const MapRange& validRange) const;
+    };
+} // namespace OpenRCT2::GameActions

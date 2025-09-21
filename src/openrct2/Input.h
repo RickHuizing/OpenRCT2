@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,110 +9,99 @@
 
 #pragma once
 
+#include "core/FlagHolder.hpp"
+#include "core/StringTypes.h"
 #include "interface/Window.h"
 
-enum INPUT_FLAGS
+namespace OpenRCT2
 {
-    INPUT_FLAG_WIDGET_PRESSED = (1 << 0),
+    enum InputFlag
+    {
+        widgetPressed,
 
-    // The dropdown can stay open if the mouse is released, set on flag Dropdown::Flag::StayOpen
-    INPUT_FLAG_DROPDOWN_STAY_OPEN = (1 << 1),
+        // The dropdown can stay open if the mouse is released, set on flag Dropdown::Flag::StayOpen.
+        dropdownStayOpen,
 
-    // The mouse has been released and the dropdown is still open
-    // INPUT_FLAG_DROPDOWN_STAY_OPEN is already set if this happens
-    INPUT_FLAG_DROPDOWN_MOUSE_UP = (1 << 2),
+        // The mouse has been released and the dropdown is still open.
+        // InputFlag::dropdownStayOpen is already set if this happens.
+        dropdownMouseUp,
 
-    INPUT_FLAG_TOOL_ACTIVE = (1 << 3),
+        toolActive,
 
-    // Left click on a viewport
-    INPUT_FLAG_4 = (1 << 4),
+        // Left click on a viewport
+        leftMousePressed,
 
-    INPUT_FLAG_5 = (1 << 5),
+        rightMousePressed,
 
-    // Some of the map tools (clear, footpath, scenery)
-    // never read as far as I know.
-    INPUT_FLAG_6 = (1 << 6),
+        // Some of the map tools (clear, footpath, scenery)
+        // never read as far as I know.
+        unk6,
 
-    INPUT_FLAG_VIEWPORT_SCROLLING = (1 << 7)
-};
+        viewportScrolling,
+    };
+    using InputFlags = FlagHolder<uint8_t, InputFlag>;
 
-enum class MouseState : uint32_t
-{
-    Released,
-    LeftPress,
-    LeftRelease,
-    RightPress,
-    RightRelease
-};
+    enum class InputState
+    {
+        Reset,
+        Normal,
+        WidgetPressed,
+        PositioningWindow,
+        ViewportRight,
+        DropdownActive,
+        ViewportLeft,
+        ScrollLeft,
+        Resizing,
+        ScrollRight
+    };
 
-enum class InputState
-{
-    Reset,
-    Normal,
-    WidgetPressed,
-    PositioningWindow,
-    ViewportRight,
-    DropdownActive,
-    ViewportLeft,
-    ScrollLeft,
-    Resizing,
-    ScrollRight
-};
+    struct CursorState
+    {
+        ScreenCoordsXY position;
+        uint8_t left, middle, right, any;
+        int32_t wheel;
+        int32_t old;
+        bool touch, touchIsDouble;
+        uint32_t touchDownTimestamp;
+    };
 
-enum PLACE_OBJECT_MODIFIER
-{
-    PLACE_OBJECT_MODIFIER_NONE = 0,
-    PLACE_OBJECT_MODIFIER_SHIFT_Z = (1 << 0),
-    PLACE_OBJECT_MODIFIER_COPY_Z = (1 << 1),
-};
+    struct TextInputSession
+    {
+        u8string* Buffer;      // UTF-8 string buffer, non-owning.
+        size_t Length;         // Number of codepoints
+        size_t MaxLength;      // Maximum length of text, Length can't be larger than this.
+        size_t SelectionStart; // Selection start, in bytes
+        size_t SelectionSize;  // Selection length in bytes
 
-struct WidgetRef
-{
-    WindowClass window_classification;
-    rct_windownumber window_number;
-    WidgetIndex widget_index;
-};
+        const utf8* ImeBuffer; // IME UTF-8 stream
+    };
 
-extern uint8_t gInputPlaceObjectModifier;
+    enum
+    {
+        CURSOR_UP = 0,
+        CURSOR_DOWN = 1,
+        CURSOR_CHANGED = 2,
+        CURSOR_RELEASED = CURSOR_UP | CURSOR_CHANGED,
+        CURSOR_PRESSED = CURSOR_DOWN | CURSOR_CHANGED,
+    };
 
-extern ScreenCoordsXY gInputDragLast;
+    extern WidgetRef gHoverWidget;
+    extern WidgetRef gPressedWidget;
 
-extern WidgetRef gHoverWidget;
-extern WidgetRef gPressedWidget;
+    extern uint32_t gTooltipCloseTimeout;
+    extern WidgetRef gTooltipWidget;
+    extern ScreenCoordsXY gTooltipCursor;
 
-extern uint32_t gTooltipCloseTimeout;
-extern WidgetRef gTooltipWidget;
-extern ScreenCoordsXY gTooltipCursor;
+    // TODO: Move to openrct2-ui and make static again
+    extern InputState _inputState;
+    extern InputFlags gInputFlags;
+    extern uint32_t _tooltipNotShownTimeout;
 
-extern Tool gCurrentToolId;
-extern WidgetRef gCurrentToolWidget;
+    void TitleHandleKeyboardInput();
+    void GameHandleKeyboardInput();
 
-// TODO: Move to openrct2-ui and make static again
-extern InputState _inputState;
-extern uint8_t _inputFlags;
-extern uint32_t _tooltipNotShownTimeout;
+    void InputSetState(InputState state);
+    InputState InputGetState();
 
-void InputWindowPositionBegin(WindowBase& w, WidgetIndex widgetIndex, const ScreenCoordsXY& screenCoords);
-
-void TitleHandleKeyboardInput();
-void GameHandleInput();
-void GameHandleKeyboardInput();
-void GameHandleEdgeScroll();
-int32_t GetNextKey();
-
-void StoreMouseInput(MouseState state, const ScreenCoordsXY& screenCoords);
-
-void InputSetFlag(INPUT_FLAGS flag, bool on);
-bool InputTestFlag(INPUT_FLAGS flag);
-void InputResetFlags();
-
-bool InputTestPlaceObjectModifier(PLACE_OBJECT_MODIFIER modifier);
-
-void InputSetState(InputState state);
-InputState InputGetState();
-
-void ResetTooltipNotShown();
-
-void InputResetPlaceObjModifier();
-
-void InputScrollViewport(const ScreenCoordsXY& screenCoords);
+    void ResetTooltipNotShown();
+} // namespace OpenRCT2

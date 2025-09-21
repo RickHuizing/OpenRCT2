@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,140 +9,146 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "ScGuest.hpp"
+    #include "ScGuest.hpp"
 
-#    include "../../../entity/Guest.h"
-#    include "../../../localisation/Localisation.h"
+    #include "../../../GameState.h"
+    #include "../../../entity/Guest.h"
+    #include "../../../localisation/Formatting.h"
+    #include "../../../object/ObjectManager.h"
+    #include "../../../object/PeepAnimationsObject.h"
+    #include "../../../peep/PeepAnimations.h"
+    #include "../../../ride/RideEntry.h"
 
 namespace OpenRCT2::Scripting
 {
-    static const DukEnumMap<PeepThoughtType> ThoughtTypeMap({
-        { "cant_afford_ride", PeepThoughtType::CantAffordRide },
-        { "spent_money", PeepThoughtType::SpentMoney },
-        { "sick", PeepThoughtType::Sick },
-        { "very_sick", PeepThoughtType::VerySick },
-        { "more_thrilling", PeepThoughtType::MoreThrilling },
-        { "intense", PeepThoughtType::Intense },
-        { "havent_finished", PeepThoughtType::HaventFinished },
-        { "sickening", PeepThoughtType::Sickening },
-        { "bad_value", PeepThoughtType::BadValue },
-        { "go_home", PeepThoughtType::GoHome },
-        { "good_value", PeepThoughtType::GoodValue },
-        { "already_got", PeepThoughtType::AlreadyGot },
-        { "cant_afford_item", PeepThoughtType::CantAffordItem },
-        { "not_hungry", PeepThoughtType::NotHungry },
-        { "not_thirsty", PeepThoughtType::NotThirsty },
-        { "drowning", PeepThoughtType::Drowning },
-        { "lost", PeepThoughtType::Lost },
-        { "was_great", PeepThoughtType::WasGreat },
-        { "queuing_ages", PeepThoughtType::QueuingAges },
-        { "tired", PeepThoughtType::Tired },
-        { "hungry", PeepThoughtType::Hungry },
-        { "thirsty", PeepThoughtType::Thirsty },
-        { "toilet", PeepThoughtType::Toilet },
-        { "cant_find", PeepThoughtType::CantFind },
-        { "not_paying", PeepThoughtType::NotPaying },
-        { "not_while_raining", PeepThoughtType::NotWhileRaining },
-        { "bad_litter", PeepThoughtType::BadLitter },
-        { "cant_find_exit", PeepThoughtType::CantFindExit },
-        { "get_off", PeepThoughtType::GetOff },
-        { "get_out", PeepThoughtType::GetOut },
-        { "not_safe", PeepThoughtType::NotSafe },
-        { "path_disgusting", PeepThoughtType::PathDisgusting },
-        { "crowded", PeepThoughtType::Crowded },
-        { "vandalism", PeepThoughtType::Vandalism },
-        { "scenery", PeepThoughtType::Scenery },
-        { "very_clean", PeepThoughtType::VeryClean },
-        { "fountains", PeepThoughtType::Fountains },
-        { "music", PeepThoughtType::Music },
-        { "balloon", PeepThoughtType::Balloon },
-        { "toy", PeepThoughtType::Toy },
-        { "map", PeepThoughtType::Map },
-        { "photo", PeepThoughtType::Photo },
-        { "umbrella", PeepThoughtType::Umbrella },
-        { "drink", PeepThoughtType::Drink },
-        { "burger", PeepThoughtType::Burger },
-        { "chips", PeepThoughtType::Chips },
-        { "ice_cream", PeepThoughtType::IceCream },
-        { "candyfloss", PeepThoughtType::Candyfloss },
-        { "pizza", PeepThoughtType::Pizza },
-        { "popcorn", PeepThoughtType::Popcorn },
-        { "hot_dog", PeepThoughtType::HotDog },
-        { "tentacle", PeepThoughtType::Tentacle },
-        { "hat", PeepThoughtType::Hat },
-        { "toffee_apple", PeepThoughtType::ToffeeApple },
-        { "tshirt", PeepThoughtType::Tshirt },
-        { "doughnut", PeepThoughtType::Doughnut },
-        { "coffee", PeepThoughtType::Coffee },
-        { "chicken", PeepThoughtType::Chicken },
-        { "lemonade", PeepThoughtType::Lemonade },
-        { "wow", PeepThoughtType::Wow },
-        { "wow2", PeepThoughtType::Wow2 },
-        { "watched", PeepThoughtType::Watched },
-        { "balloon_much", PeepThoughtType::BalloonMuch },
-        { "toy_much", PeepThoughtType::ToyMuch },
-        { "map_much", PeepThoughtType::MapMuch },
-        { "photo_much", PeepThoughtType::PhotoMuch },
-        { "umbrella_much", PeepThoughtType::UmbrellaMuch },
-        { "drink_much", PeepThoughtType::DrinkMuch },
-        { "burger_much", PeepThoughtType::BurgerMuch },
-        { "chips_much", PeepThoughtType::ChipsMuch },
-        { "ice_cream_much", PeepThoughtType::IceCreamMuch },
-        { "candyfloss_much", PeepThoughtType::CandyflossMuch },
-        { "pizza_much", PeepThoughtType::PizzaMuch },
-        { "popcorn_much", PeepThoughtType::PopcornMuch },
-        { "hot_dog_much", PeepThoughtType::HotDogMuch },
-        { "tentacle_much", PeepThoughtType::TentacleMuch },
-        { "hat_much", PeepThoughtType::HatMuch },
-        { "toffee_apple_much", PeepThoughtType::ToffeeAppleMuch },
-        { "tshirt_much", PeepThoughtType::TshirtMuch },
-        { "doughnut_much", PeepThoughtType::DoughnutMuch },
-        { "coffee_much", PeepThoughtType::CoffeeMuch },
-        { "chicken_much", PeepThoughtType::ChickenMuch },
-        { "lemonade_much", PeepThoughtType::LemonadeMuch },
-        { "photo2", PeepThoughtType::Photo2 },
-        { "photo3", PeepThoughtType::Photo3 },
-        { "photo4", PeepThoughtType::Photo4 },
-        { "pretzel", PeepThoughtType::Pretzel },
-        { "hot_chocolate", PeepThoughtType::HotChocolate },
-        { "iced_tea", PeepThoughtType::IcedTea },
-        { "funnel_cake", PeepThoughtType::FunnelCake },
-        { "sunglasses", PeepThoughtType::Sunglasses },
-        { "beef_noodles", PeepThoughtType::BeefNoodles },
-        { "fried_rice_noodles", PeepThoughtType::FriedRiceNoodles },
-        { "wonton_soup", PeepThoughtType::WontonSoup },
-        { "meatball_soup", PeepThoughtType::MeatballSoup },
-        { "fruit_juice", PeepThoughtType::FruitJuice },
-        { "soybean_milk", PeepThoughtType::SoybeanMilk },
-        { "sujongkwa", PeepThoughtType::Sujongkwa },
-        { "sub_sandwich", PeepThoughtType::SubSandwich },
-        { "cookie", PeepThoughtType::Cookie },
-        { "roast_sausage", PeepThoughtType::RoastSausage },
-        { "photo2_much", PeepThoughtType::Photo2Much },
-        { "photo3_much", PeepThoughtType::Photo3Much },
-        { "photo4_much", PeepThoughtType::Photo4Much },
-        { "pretzel_much", PeepThoughtType::PretzelMuch },
-        { "hot_chocolate_much", PeepThoughtType::HotChocolateMuch },
-        { "iced_tea_much", PeepThoughtType::IcedTeaMuch },
-        { "funnel_cake_much", PeepThoughtType::FunnelCakeMuch },
-        { "sunglasses_much", PeepThoughtType::SunglassesMuch },
-        { "beef_noodles_much", PeepThoughtType::BeefNoodlesMuch },
-        { "fried_rice_noodles_much", PeepThoughtType::FriedRiceNoodlesMuch },
-        { "wonton_soup_much", PeepThoughtType::WontonSoupMuch },
-        { "meatball_soup_much", PeepThoughtType::MeatballSoupMuch },
-        { "fruit_juice_much", PeepThoughtType::FruitJuiceMuch },
-        { "soybean_milk_much", PeepThoughtType::SoybeanMilkMuch },
-        { "sujongkwa_much", PeepThoughtType::SujongkwaMuch },
-        { "sub_sandwich_much", PeepThoughtType::SubSandwichMuch },
-        { "cookie_much", PeepThoughtType::CookieMuch },
-        { "roast_sausage_much", PeepThoughtType::RoastSausageMuch },
-        { "help", PeepThoughtType::Help },
-        { "running_out", PeepThoughtType::RunningOut },
-        { "new_ride", PeepThoughtType::NewRide },
-        { "nice_ride_deprecated", PeepThoughtType::NiceRideDeprecated },
-        { "excited_deprecated", PeepThoughtType::ExcitedDeprecated },
-        { "here_we_are", PeepThoughtType::HereWeAre },
-    });
+    static const DukEnumMap<PeepThoughtType> ThoughtTypeMap(
+        {
+            { "cant_afford_ride", PeepThoughtType::CantAffordRide },
+            { "spent_money", PeepThoughtType::SpentMoney },
+            { "sick", PeepThoughtType::Sick },
+            { "very_sick", PeepThoughtType::VerySick },
+            { "more_thrilling", PeepThoughtType::MoreThrilling },
+            { "intense", PeepThoughtType::Intense },
+            { "havent_finished", PeepThoughtType::HaventFinished },
+            { "sickening", PeepThoughtType::Sickening },
+            { "bad_value", PeepThoughtType::BadValue },
+            { "go_home", PeepThoughtType::GoHome },
+            { "good_value", PeepThoughtType::GoodValue },
+            { "already_got", PeepThoughtType::AlreadyGot },
+            { "cant_afford_item", PeepThoughtType::CantAffordItem },
+            { "not_hungry", PeepThoughtType::NotHungry },
+            { "not_thirsty", PeepThoughtType::NotThirsty },
+            { "drowning", PeepThoughtType::Drowning },
+            { "lost", PeepThoughtType::Lost },
+            { "was_great", PeepThoughtType::WasGreat },
+            { "queuing_ages", PeepThoughtType::QueuingAges },
+            { "tired", PeepThoughtType::Tired },
+            { "hungry", PeepThoughtType::Hungry },
+            { "thirsty", PeepThoughtType::Thirsty },
+            { "toilet", PeepThoughtType::Toilet },
+            { "cant_find", PeepThoughtType::CantFind },
+            { "not_paying", PeepThoughtType::NotPaying },
+            { "not_while_raining", PeepThoughtType::NotWhileRaining },
+            { "bad_litter", PeepThoughtType::BadLitter },
+            { "cant_find_exit", PeepThoughtType::CantFindExit },
+            { "get_off", PeepThoughtType::GetOff },
+            { "get_out", PeepThoughtType::GetOut },
+            { "not_safe", PeepThoughtType::NotSafe },
+            { "path_disgusting", PeepThoughtType::PathDisgusting },
+            { "crowded", PeepThoughtType::Crowded },
+            { "vandalism", PeepThoughtType::Vandalism },
+            { "scenery", PeepThoughtType::Scenery },
+            { "very_clean", PeepThoughtType::VeryClean },
+            { "fountains", PeepThoughtType::Fountains },
+            { "music", PeepThoughtType::Music },
+            { "balloon", PeepThoughtType::Balloon },
+            { "toy", PeepThoughtType::Toy },
+            { "map", PeepThoughtType::Map },
+            { "photo", PeepThoughtType::Photo },
+            { "umbrella", PeepThoughtType::Umbrella },
+            { "drink", PeepThoughtType::Drink },
+            { "burger", PeepThoughtType::Burger },
+            { "chips", PeepThoughtType::Chips },
+            { "ice_cream", PeepThoughtType::IceCream },
+            { "candyfloss", PeepThoughtType::Candyfloss },
+            { "pizza", PeepThoughtType::Pizza },
+            { "popcorn", PeepThoughtType::Popcorn },
+            { "hot_dog", PeepThoughtType::HotDog },
+            { "tentacle", PeepThoughtType::Tentacle },
+            { "hat", PeepThoughtType::Hat },
+            { "toffee_apple", PeepThoughtType::ToffeeApple },
+            { "tshirt", PeepThoughtType::Tshirt },
+            { "doughnut", PeepThoughtType::Doughnut },
+            { "coffee", PeepThoughtType::Coffee },
+            { "chicken", PeepThoughtType::Chicken },
+            { "lemonade", PeepThoughtType::Lemonade },
+            { "wow", PeepThoughtType::Wow },
+            { "wow2", PeepThoughtType::Wow2 },
+            { "watched", PeepThoughtType::Watched },
+            { "balloon_much", PeepThoughtType::BalloonMuch },
+            { "toy_much", PeepThoughtType::ToyMuch },
+            { "map_much", PeepThoughtType::MapMuch },
+            { "photo_much", PeepThoughtType::PhotoMuch },
+            { "umbrella_much", PeepThoughtType::UmbrellaMuch },
+            { "drink_much", PeepThoughtType::DrinkMuch },
+            { "burger_much", PeepThoughtType::BurgerMuch },
+            { "chips_much", PeepThoughtType::ChipsMuch },
+            { "ice_cream_much", PeepThoughtType::IceCreamMuch },
+            { "candyfloss_much", PeepThoughtType::CandyflossMuch },
+            { "pizza_much", PeepThoughtType::PizzaMuch },
+            { "popcorn_much", PeepThoughtType::PopcornMuch },
+            { "hot_dog_much", PeepThoughtType::HotDogMuch },
+            { "tentacle_much", PeepThoughtType::TentacleMuch },
+            { "hat_much", PeepThoughtType::HatMuch },
+            { "toffee_apple_much", PeepThoughtType::ToffeeAppleMuch },
+            { "tshirt_much", PeepThoughtType::TshirtMuch },
+            { "doughnut_much", PeepThoughtType::DoughnutMuch },
+            { "coffee_much", PeepThoughtType::CoffeeMuch },
+            { "chicken_much", PeepThoughtType::ChickenMuch },
+            { "lemonade_much", PeepThoughtType::LemonadeMuch },
+            { "photo2", PeepThoughtType::Photo2 },
+            { "photo3", PeepThoughtType::Photo3 },
+            { "photo4", PeepThoughtType::Photo4 },
+            { "pretzel", PeepThoughtType::Pretzel },
+            { "hot_chocolate", PeepThoughtType::HotChocolate },
+            { "iced_tea", PeepThoughtType::IcedTea },
+            { "funnel_cake", PeepThoughtType::FunnelCake },
+            { "sunglasses", PeepThoughtType::Sunglasses },
+            { "beef_noodles", PeepThoughtType::BeefNoodles },
+            { "fried_rice_noodles", PeepThoughtType::FriedRiceNoodles },
+            { "wonton_soup", PeepThoughtType::WontonSoup },
+            { "meatball_soup", PeepThoughtType::MeatballSoup },
+            { "fruit_juice", PeepThoughtType::FruitJuice },
+            { "soybean_milk", PeepThoughtType::SoybeanMilk },
+            { "sujongkwa", PeepThoughtType::Sujongkwa },
+            { "sub_sandwich", PeepThoughtType::SubSandwich },
+            { "cookie", PeepThoughtType::Cookie },
+            { "roast_sausage", PeepThoughtType::RoastSausage },
+            { "photo2_much", PeepThoughtType::Photo2Much },
+            { "photo3_much", PeepThoughtType::Photo3Much },
+            { "photo4_much", PeepThoughtType::Photo4Much },
+            { "pretzel_much", PeepThoughtType::PretzelMuch },
+            { "hot_chocolate_much", PeepThoughtType::HotChocolateMuch },
+            { "iced_tea_much", PeepThoughtType::IcedTeaMuch },
+            { "funnel_cake_much", PeepThoughtType::FunnelCakeMuch },
+            { "sunglasses_much", PeepThoughtType::SunglassesMuch },
+            { "beef_noodles_much", PeepThoughtType::BeefNoodlesMuch },
+            { "fried_rice_noodles_much", PeepThoughtType::FriedRiceNoodlesMuch },
+            { "wonton_soup_much", PeepThoughtType::WontonSoupMuch },
+            { "meatball_soup_much", PeepThoughtType::MeatballSoupMuch },
+            { "fruit_juice_much", PeepThoughtType::FruitJuiceMuch },
+            { "soybean_milk_much", PeepThoughtType::SoybeanMilkMuch },
+            { "sujongkwa_much", PeepThoughtType::SujongkwaMuch },
+            { "sub_sandwich_much", PeepThoughtType::SubSandwichMuch },
+            { "cookie_much", PeepThoughtType::CookieMuch },
+            { "roast_sausage_much", PeepThoughtType::RoastSausageMuch },
+            { "help", PeepThoughtType::Help },
+            { "running_out", PeepThoughtType::RunningOut },
+            { "new_ride", PeepThoughtType::NewRide },
+            { "nice_ride_deprecated", PeepThoughtType::NiceRideDeprecated },
+            { "excited_deprecated", PeepThoughtType::ExcitedDeprecated },
+            { "here_we_are", PeepThoughtType::HereWeAre },
+        });
 
     ScGuest::ScGuest(EntityId id)
         : ScPeep(id)
@@ -172,8 +178,14 @@ namespace OpenRCT2::Scripting
         dukglue_register_property(ctx, &ScGuest::isInPark_get, nullptr, "isInPark");
         dukglue_register_property(ctx, &ScGuest::isLost_get, nullptr, "isLost");
         dukglue_register_property(ctx, &ScGuest::lostCountdown_get, &ScGuest::lostCountdown_set, "lostCountdown");
+        dukglue_register_property(ctx, &ScGuest::favouriteRide_get, &ScGuest::favouriteRide_set, "favouriteRide");
         dukglue_register_property(ctx, &ScGuest::thoughts_get, nullptr, "thoughts");
         dukglue_register_property(ctx, &ScGuest::items_get, nullptr, "items");
+        dukglue_register_property(ctx, &ScGuest::availableAnimations_get, nullptr, "availableAnimations");
+        dukglue_register_property(ctx, &ScGuest::animation_get, &ScGuest::animation_set, "animation");
+        dukglue_register_property(ctx, &ScGuest::animationOffset_get, &ScGuest::animationOffset_set, "animationOffset");
+        dukglue_register_property(ctx, &ScGuest::animationLength_get, nullptr, "animationLength");
+        dukglue_register_method(ctx, &ScGuest::getAnimationSpriteIds, "getAnimationSpriteIds");
         dukglue_register_method(ctx, &ScGuest::has_item, "hasItem");
         dukglue_register_method(ctx, &ScGuest::give_item, "giveItem");
         dukglue_register_method(ctx, &ScGuest::remove_item, "removeItem");
@@ -182,7 +194,7 @@ namespace OpenRCT2::Scripting
 
     Guest* ScGuest::GetGuest() const
     {
-        return ::GetEntity<Guest>(_id);
+        return OpenRCT2::getGameState().entities.GetEntity<Guest>(_id);
     }
 
     uint8_t ScGuest::tshirtColour_get() const
@@ -469,6 +481,48 @@ namespace OpenRCT2::Scripting
         if (peep != nullptr)
         {
             peep->GuestIsLostCountdown = value;
+        }
+    }
+
+    DukValue ScGuest::favouriteRide_get() const
+    {
+        auto& scriptEngine = GetContext()->GetScriptEngine();
+        auto* ctx = scriptEngine.GetContext();
+        auto peep = GetGuest();
+        if (peep != nullptr)
+        {
+            if (peep->FavouriteRide != RideId::GetNull())
+            {
+                duk_push_int(ctx, peep->FavouriteRide.ToUnderlying());
+            }
+            else
+            {
+                duk_push_null(ctx);
+            }
+        }
+        else
+        {
+            duk_push_null(ctx);
+        }
+        return DukValue::take_from_stack(ctx);
+    }
+
+    void ScGuest::favouriteRide_set(const DukValue& value)
+    {
+        ThrowIfGameStateNotMutable();
+        auto peep = GetGuest();
+        if (peep != nullptr)
+        {
+            auto& gameState = getGameState();
+            if (value.type() == DukValue::Type::NUMBER && value.as_uint() < gameState.rides.size()
+                && gameState.rides[value.as_uint()].type != kRideTypeNull)
+            {
+                peep->FavouriteRide = RideId::FromUnderlying(value.as_uint());
+            }
+            else
+            {
+                peep->FavouriteRide = RideId::GetNull();
+            }
         }
     }
 
@@ -765,7 +819,7 @@ namespace OpenRCT2::Scripting
         }
 
         peep->GiveItem(*shopItem);
-        peep->UpdateSpriteType();
+        peep->UpdateAnimationGroup();
     }
 
     void ScGuest::remove_item(const DukValue& item) const
@@ -776,7 +830,7 @@ namespace OpenRCT2::Scripting
             // Since guests can only have one item of a type and this item matches, remove it.
             auto peep = GetGuest();
             peep->RemoveItem(ShopItemMap[item["type"].as_string()]);
-            peep->UpdateSpriteType();
+            peep->UpdateAnimationGroup();
         }
     }
 
@@ -787,8 +841,150 @@ namespace OpenRCT2::Scripting
         if (peep != nullptr)
         {
             peep->RemoveAllItems();
-            peep->UpdateSpriteType();
+            peep->UpdateAnimationGroup();
         }
+    }
+
+    std::vector<std::string> ScGuest::availableAnimations_get() const
+    {
+        std::vector<std::string> availableAnimations{};
+        for (auto& animation : getAnimationsByPeepType(AnimationPeepType::Guest))
+        {
+            availableAnimations.push_back(std::string(animation.first));
+        }
+        return availableAnimations;
+    }
+
+    std::vector<uint32_t> ScGuest::getAnimationSpriteIds(std::string groupKey, uint8_t rotation) const
+    {
+        std::vector<uint32_t> spriteIds{};
+
+        auto& availableGuestAnimations = getAnimationsByPeepType(AnimationPeepType::Guest);
+        auto animationType = availableGuestAnimations.TryGet(groupKey);
+        if (animationType == std::nullopt)
+        {
+            return spriteIds;
+        }
+
+        auto peep = GetPeep();
+        if (peep != nullptr)
+        {
+            auto& objManager = GetContext()->GetObjectManager();
+            auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(peep->AnimationObjectIndex);
+
+            const auto& animationGroup = animObj->GetPeepAnimation(peep->AnimationGroup, *animationType);
+            for (auto frameOffset : animationGroup.frame_offsets)
+            {
+                auto imageId = animationGroup.base_image;
+                if (animationType != PeepAnimationType::Hanging)
+                    imageId += rotation + frameOffset * 4;
+                else
+                    imageId += frameOffset;
+
+                spriteIds.push_back(imageId);
+            }
+        }
+        return spriteIds;
+    }
+
+    std::string ScGuest::animation_get() const
+    {
+        auto* peep = GetGuest();
+        if (peep == nullptr)
+        {
+            return nullptr;
+        }
+
+        auto& availableGuestAnimations = getAnimationsByPeepType(AnimationPeepType::Guest);
+        std::string_view action = availableGuestAnimations[peep->AnimationType];
+
+        // Special consideration for sitting peeps
+        // TODO: something funky going on in the state machine
+        if (peep->AnimationType == PeepAnimationType::Walking && peep->State == PeepState::Sitting)
+            action = availableGuestAnimations[PeepAnimationType::SittingIdle];
+
+        return std::string(action);
+    }
+
+    void ScGuest::animation_set(std::string groupKey)
+    {
+        ThrowIfGameStateNotMutable();
+
+        auto& availableGuestAnimations = getAnimationsByPeepType(AnimationPeepType::Guest);
+        auto newType = availableGuestAnimations.TryGet(groupKey);
+        if (newType == std::nullopt)
+        {
+            throw DukException() << "Invalid animation for this guest (" << groupKey << ")";
+        }
+
+        auto* peep = GetGuest();
+        peep->AnimationType = peep->NextAnimationType = *newType;
+
+        auto offset = 0;
+        if (peep->IsActionWalking())
+            peep->WalkingAnimationFrameNum = offset;
+        else
+            peep->AnimationFrameNum = offset;
+
+        auto& objManager = GetContext()->GetObjectManager();
+        auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(peep->AnimationObjectIndex);
+
+        const auto& animationGroup = animObj->GetPeepAnimation(peep->AnimationGroup, peep->AnimationType);
+        peep->AnimationImageIdOffset = animationGroup.frame_offsets[offset];
+        peep->Invalidate();
+        peep->UpdateSpriteBoundingBox();
+        peep->Invalidate();
+    }
+
+    uint8_t ScGuest::animationOffset_get() const
+    {
+        auto* peep = GetGuest();
+        if (peep == nullptr)
+        {
+            return 0;
+        }
+
+        if (peep->IsActionWalking())
+            return peep->WalkingAnimationFrameNum;
+        else
+            return peep->AnimationFrameNum;
+    }
+
+    void ScGuest::animationOffset_set(uint8_t offset)
+    {
+        ThrowIfGameStateNotMutable();
+
+        auto* peep = GetGuest();
+
+        auto& objManager = GetContext()->GetObjectManager();
+        auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(peep->AnimationObjectIndex);
+
+        const auto& animationGroup = animObj->GetPeepAnimation(peep->AnimationGroup, peep->AnimationType);
+        auto length = animationGroup.frame_offsets.size();
+        offset %= length;
+
+        if (peep->IsActionWalking())
+            peep->WalkingAnimationFrameNum = offset;
+        else
+            peep->AnimationFrameNum = offset;
+
+        peep->AnimationImageIdOffset = animationGroup.frame_offsets[offset];
+        peep->UpdateSpriteBoundingBox();
+    }
+
+    uint8_t ScGuest::animationLength_get() const
+    {
+        auto* peep = GetGuest();
+        if (peep == nullptr)
+        {
+            return 0;
+        }
+
+        auto& objManager = GetContext()->GetObjectManager();
+        auto* animObj = objManager.GetLoadedObject<PeepAnimationsObject>(peep->AnimationObjectIndex);
+
+        const auto& animationGroup = animObj->GetPeepAnimation(peep->AnimationGroup, peep->AnimationType);
+        return static_cast<uint8_t>(animationGroup.frame_offsets.size());
     }
 
     ScThought::ScThought(PeepThought backing)
@@ -830,7 +1026,7 @@ namespace OpenRCT2::Scripting
         // format string with arguments
         auto ft = Formatter();
         PeepThoughtSetFormatArgs(&_backing, ft);
-        return FormatStringID(STR_STRINGID, ft.Data());
+        return FormatStringIDLegacy(STR_STRINGID, ft.Data());
     }
 
 } // namespace OpenRCT2::Scripting

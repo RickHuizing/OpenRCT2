@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,83 +11,105 @@
 
 #include "../Context.h"
 #include "../Diagnostic.h"
-#include "../common.h"
 #include "../drawing/Drawing.h"
-#include "../localisation/Localisation.h"
 #include "../localisation/StringIds.h"
 #include "../ride/Ride.h"
 #include "../world/Banner.h"
+#include "../world/Map.h"
 
 #include <string>
 
-SignSetNameAction::SignSetNameAction(BannerIndex bannerIndex, const std::string& name)
-    : _bannerIndex(bannerIndex)
-    , _name(name)
+namespace OpenRCT2::GameActions
 {
-}
-
-void SignSetNameAction::AcceptParameters(GameActionParameterVisitor& visitor)
-{
-    visitor.Visit("id", _bannerIndex);
-    visitor.Visit("name", _name);
-}
-
-uint16_t SignSetNameAction::GetActionFlags() const
-{
-    return GameAction::GetActionFlags() | GameActions::Flags::AllowWhilePaused;
-}
-
-void SignSetNameAction::Serialise(DataSerialiser& stream)
-{
-    GameAction::Serialise(stream);
-    stream << DS_TAG(_bannerIndex) << DS_TAG(_name);
-}
-
-GameActions::Result SignSetNameAction::Query() const
-{
-    auto banner = GetBanner(_bannerIndex);
-    if (banner == nullptr)
+    SignSetNameAction::SignSetNameAction(BannerIndex bannerIndex, const std::string& name)
+        : _bannerIndex(bannerIndex)
+        , _name(name)
     {
-        LOG_WARNING("Invalid game command for setting sign name, banner id = %d", _bannerIndex);
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_RENAME_SIGN, STR_NONE);
-    }
-    return GameActions::Result();
-}
-
-GameActions::Result SignSetNameAction::Execute() const
-{
-    auto banner = GetBanner(_bannerIndex);
-    if (banner == nullptr)
-    {
-        LOG_WARNING("Invalid game command for setting sign name, banner id = %d", _bannerIndex);
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_RENAME_SIGN, STR_NONE);
     }
 
-    if (!_name.empty())
+    void SignSetNameAction::AcceptParameters(GameActionParameterVisitor& visitor)
     {
-        banner->flags &= ~BANNER_FLAG_LINKED_TO_RIDE;
-        banner->ride_index = RideId::GetNull();
-        banner->text = _name;
+        visitor.Visit("id", _bannerIndex);
+        visitor.Visit("name", _name);
     }
-    else
+
+    uint16_t SignSetNameAction::GetActionFlags() const
     {
-        // If empty name take closest ride name.
-        RideId rideIndex = BannerGetClosestRideIndex({ banner->position.ToCoordsXY(), 16 });
-        if (rideIndex.IsNull())
+        return GameAction::GetActionFlags() | Flags::AllowWhilePaused;
+    }
+
+    void SignSetNameAction::Serialise(DataSerialiser& stream)
+    {
+        GameAction::Serialise(stream);
+        stream << DS_TAG(_bannerIndex) << DS_TAG(_name);
+    }
+
+    Result SignSetNameAction::Query(GameState_t& gameState) const
+    {
+        auto banner = GetBanner(_bannerIndex);
+        if (banner == nullptr)
         {
-            banner->flags &= ~BANNER_FLAG_LINKED_TO_RIDE;
-            banner->ride_index = RideId::GetNull();
-            banner->text = {};
+            LOG_ERROR("Banner not found for bannerIndex %d", _bannerIndex);
+            return Result(Status::InvalidParameters, STR_CANT_RENAME_SIGN, kStringIdNone);
+        }
+
+        TileElement* tileElement = BannerGetTileElement(_bannerIndex);
+
+        if (tileElement == nullptr)
+        {
+            LOG_ERROR("Banner tile element not found for bannerIndex %d", _bannerIndex);
+            return Result(Status::InvalidParameters, STR_CANT_RENAME_BANNER, STR_ERR_BANNER_ELEMENT_NOT_FOUND);
+        }
+
+        CoordsXYZ loc = { banner->position.ToCoordsXY(), tileElement->GetBaseZ() };
+
+        if (!LocationValid(loc))
+        {
+            return Result(Status::InvalidParameters, STR_CANT_RENAME_BANNER, STR_OFF_EDGE_OF_MAP);
+        }
+        if (!MapCanBuildAt({ loc.x, loc.y, loc.z - 16 }))
+        {
+            return Result(Status::NotOwned, STR_CANT_RENAME_BANNER, STR_LAND_NOT_OWNED_BY_PARK);
+        }
+
+        return Result();
+    }
+
+    Result SignSetNameAction::Execute(GameState_t& gameState) const
+    {
+        auto banner = GetBanner(_bannerIndex);
+        if (banner == nullptr)
+        {
+            LOG_ERROR("Banner not found for bannerIndex %d", _bannerIndex);
+            return Result(Status::InvalidParameters, STR_CANT_RENAME_SIGN, kStringIdNone);
+        }
+
+        if (!_name.empty())
+        {
+            banner->flags.unset(BannerFlag::linkedToRide);
+            banner->rideIndex = RideId::GetNull();
+            banner->text = _name;
         }
         else
         {
-            banner->flags |= BANNER_FLAG_LINKED_TO_RIDE;
-            banner->ride_index = rideIndex;
-            banner->text = {};
+            // If empty name take closest ride name.
+            RideId rideIndex = BannerGetClosestRideIndex({ banner->position.ToCoordsXY(), 16 });
+            if (rideIndex.IsNull())
+            {
+                banner->flags.unset(BannerFlag::linkedToRide);
+                banner->rideIndex = RideId::GetNull();
+                banner->text = {};
+            }
+            else
+            {
+                banner->flags.set(BannerFlag::linkedToRide);
+                banner->rideIndex = rideIndex;
+                banner->text = {};
+            }
         }
-    }
 
-    ScrollingTextInvalidate();
-    GfxInvalidateScreen();
-    return GameActions::Result();
-}
+        ScrollingTextInvalidate();
+        GfxInvalidateScreen();
+        return Result();
+    }
+} // namespace OpenRCT2::GameActions

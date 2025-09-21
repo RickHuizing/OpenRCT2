@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,10 +9,13 @@
 
 #include <gtest/gtest.h>
 #include <openrct2/core/MemoryStream.h>
-#include <openrct2/rct12/SawyerChunkReader.h>
-#include <openrct2/util/SawyerCoding.h>
+#include <openrct2/sawyer_coding/SawyerChunkReader.h>
+#include <openrct2/sawyer_coding/SawyerCoding.h>
 
 constexpr size_t BUFFER_SIZE = 0x600000;
+
+using namespace OpenRCT2;
+using namespace OpenRCT2::SawyerCoding;
 
 class SawyerCodingTest : public testing::Test
 {
@@ -31,22 +34,22 @@ protected:
     static const uint8_t invalid7[6];
     static const uint8_t empty[1];
 
-    void TestEncodeDecode(uint8_t encoding_type)
+    void TestEncodeDecode(ChunkEncoding encoding_type)
     {
         // Encode
-        SawyerCodingChunkHeader chdr_in;
+        SawyerCoding::ChunkHeader chdr_in;
         chdr_in.encoding = encoding_type;
         chdr_in.length = sizeof(randomdata);
         uint8_t* encodedDataBuffer = new uint8_t[BUFFER_SIZE];
-        size_t encodedDataSize = SawyerCodingWriteChunkBuffer(
+        size_t encodedDataSize = SawyerCoding::WriteChunkBuffer(
             encodedDataBuffer, reinterpret_cast<const uint8_t*>(randomdata), chdr_in);
-        ASSERT_GT(encodedDataSize, sizeof(SawyerCodingChunkHeader));
+        ASSERT_GT(encodedDataSize, sizeof(SawyerCoding::ChunkHeader));
 
         // Decode
         OpenRCT2::MemoryStream ms(encodedDataBuffer, encodedDataSize);
         SawyerChunkReader reader(&ms);
         auto chunk = reader.ReadChunk();
-        ASSERT_EQ(static_cast<uint8_t>(chunk->GetEncoding()), chdr_in.encoding);
+        ASSERT_EQ(chunk->GetEncoding(), chdr_in.encoding);
         ASSERT_EQ(chunk->GetLength(), chdr_in.length);
         auto result = memcmp(chunk->GetData(), randomdata, sizeof(randomdata));
         ASSERT_EQ(result, 0);
@@ -56,14 +59,14 @@ protected:
 
     void TestDecode(const uint8_t* data, size_t size)
     {
-        auto expectedLength = size - sizeof(SawyerCodingChunkHeader);
-        auto chdr_in = reinterpret_cast<const SawyerCodingChunkHeader*>(data);
+        auto expectedLength = size - sizeof(SawyerCoding::ChunkHeader);
+        auto chdr_in = reinterpret_cast<const SawyerCoding::ChunkHeader*>(data);
         ASSERT_EQ(chdr_in->length, expectedLength);
 
         OpenRCT2::MemoryStream ms(data, size);
         SawyerChunkReader reader(&ms);
         auto chunk = reader.ReadChunk();
-        ASSERT_EQ(static_cast<uint8_t>(chunk->GetEncoding()), chdr_in->encoding);
+        ASSERT_EQ(chunk->GetEncoding(), chdr_in->encoding);
         ASSERT_EQ(chunk->GetLength(), sizeof(randomdata));
         auto result = memcmp(chunk->GetData(), randomdata, sizeof(randomdata));
         ASSERT_EQ(result, 0);
@@ -72,22 +75,22 @@ protected:
 
 TEST_F(SawyerCodingTest, write_read_chunk_none)
 {
-    TestEncodeDecode(CHUNK_ENCODING_NONE);
+    TestEncodeDecode(ChunkEncoding::none);
 }
 
 TEST_F(SawyerCodingTest, write_read_chunk_rle)
 {
-    TestEncodeDecode(CHUNK_ENCODING_RLE);
+    TestEncodeDecode(ChunkEncoding::rle);
 }
 
 TEST_F(SawyerCodingTest, write_read_chunk_rle_compressed)
 {
-    TestEncodeDecode(CHUNK_ENCODING_RLECOMPRESSED);
+    TestEncodeDecode(ChunkEncoding::rleCompressed);
 }
 
 TEST_F(SawyerCodingTest, write_read_chunk_rotate)
 {
-    TestEncodeDecode(CHUNK_ENCODING_ROTATE);
+    TestEncodeDecode(ChunkEncoding::rotate);
 }
 
 // Note we only check if provided data decompresses to the same data, not if it compresses the same.

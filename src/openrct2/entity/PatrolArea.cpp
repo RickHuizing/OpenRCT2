@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -12,6 +12,11 @@
 #include "../core/Algorithm.hpp"
 #include "EntityList.h"
 #include "Staff.h"
+
+#include <cassert>
+
+using namespace OpenRCT2;
+using namespace OpenRCT2::Core;
 
 static PatrolArea _consolidatedPatrolArea[EnumValue(StaffType::Count)];
 static std::variant<StaffType, EntityId> _patrolAreaToRender;
@@ -57,7 +62,7 @@ bool PatrolArea::Get(const TileCoordsXY& pos) const
     if (area == nullptr)
         return false;
 
-    auto it = BinaryFind(area->SortedTiles.begin(), area->SortedTiles.end(), pos, CompareTileCoordsXY);
+    auto it = Algorithm::binaryFind(area->SortedTiles.begin(), area->SortedTiles.end(), pos, CompareTileCoordsXY);
     auto found = it != area->SortedTiles.end();
     return found;
 }

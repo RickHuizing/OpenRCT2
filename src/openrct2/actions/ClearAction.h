@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -13,45 +13,46 @@
 #include "../management/Finance.h"
 #include "GameAction.h"
 
-using namespace OpenRCT2;
-
-using ClearableItems = uint8_t;
-
-namespace CLEARABLE_ITEMS
+namespace OpenRCT2::GameActions
 {
-    constexpr ClearableItems SCENERY_SMALL = 1 << 0;
-    constexpr ClearableItems SCENERY_LARGE = 1 << 1;
-    constexpr ClearableItems SCENERY_FOOTPATH = 1 << 2;
-} // namespace CLEARABLE_ITEMS
+    using ClearableItems = uint8_t;
 
-class ClearAction final : public GameActionBase<GameCommand::ClearScenery>
-{
-private:
-    MapRange _range;
-    ClearableItems _itemsToClear{};
+    namespace CLEARABLE_ITEMS
+    {
+        constexpr ClearableItems kScenerySmall = 1 << 0;
+        constexpr ClearableItems kSceneryLarge = 1 << 1;
+        constexpr ClearableItems kSceneryFootpath = 1 << 2;
+    } // namespace CLEARABLE_ITEMS
 
-public:
-    ClearAction() = default;
-    ClearAction(MapRange range, ClearableItems itemsToClear);
+    class ClearAction final : public GameActionBase<GameCommand::ClearScenery>
+    {
+    private:
+        MapRange _range;
+        ClearableItems _itemsToClear{};
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+    public:
+        ClearAction() = default;
+        ClearAction(MapRange range, ClearableItems itemsToClear);
 
-    uint16_t GetActionFlags() const override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        uint16_t GetActionFlags() const override;
 
-private:
-    GameActions::Result CreateResult() const;
-    GameActions::Result QueryExecute(bool executing) const;
-    money64 ClearSceneryFromTile(const CoordsXY& tilePos, bool executing) const;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-    /**
-     * Function to clear the flag that is set to prevent cost duplication
-     * when using the clear scenery tool with large scenery.
-     */
-    static void ResetClearLargeSceneryFlag();
+    private:
+        Result CreateResult() const;
+        Result QueryExecute(GameState_t& gameState, bool executing) const;
+        money64 ClearSceneryFromTile(const CoordsXY& tilePos, bool executing, GameState_t& gameState) const;
 
-    static bool MapCanClearAt(const CoordsXY& location);
-};
+        /**
+         * Function to clear the flag that is set to prevent cost duplication
+         * when using the clear scenery tool with large scenery.
+         */
+        static void ResetClearLargeSceneryFlag(GameState_t& gameState);
+
+        static bool MapCanClearAt(const GameState_t& gameState, const CoordsXY& location);
+    };
+} // namespace OpenRCT2::GameActions

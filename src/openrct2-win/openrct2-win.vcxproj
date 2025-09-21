@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <SolutionDir Condition="'$(SolutionDir)'==''">..\..\</SolutionDir>
@@ -74,6 +74,20 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="openrct2-win.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="openrct2-win.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\openrct2-deps\openrct2-deps.vcxproj">
+      <Project>{c453da76-44b3-4ac8-aaa2-2b64a76993a5}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\openrct2-ui\libopenrct2ui.vcxproj">
+      <Project>{8dd8ab7d-2ea6-44e3-8265-baf08e832951}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\openrct2\libopenrct2.vcxproj">
+      <Project>{d24d94f6-2a74-480c-b512-629c306ce92f}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

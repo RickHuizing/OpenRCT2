@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,23 +11,26 @@
 
 #include "GameAction.h"
 
-class GameSetSpeedAction final : public GameActionBase<GameCommand::SetGameSpeed>
+namespace OpenRCT2::GameActions
 {
-private:
-    int32_t _speed{ 1 };
+    class GameSetSpeedAction final : public GameActionBase<GameCommand::SetGameSpeed>
+    {
+    private:
+        uint8_t _speed{ 1 };
 
-public:
-    GameSetSpeedAction() = default;
-    GameSetSpeedAction(int32_t speed);
+    public:
+        GameSetSpeedAction() = default;
+        GameSetSpeedAction(uint8_t speed);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    bool IsValidSpeed(int32_t speed) const;
-};
+    private:
+        bool IsValidSpeed(uint8_t speed) const;
+    };
+} // namespace OpenRCT2::GameActions

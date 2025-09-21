@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,14 +9,16 @@
 
 #ifdef __ANDROID__
 
-#    include "../platform/Platform.h"
-#    include "IStream.hpp"
-#    include "MemoryStream.h"
-#    include "Zip.h"
+    #include "../Diagnostic.h"
+    #include "../platform/Platform.h"
+    #include "IStream.hpp"
+    #include "Memory.hpp"
+    #include "MemoryStream.h"
+    #include "Zip.h"
 
-#    include <SDL.h>
-#    include <jni.h>
-#    include <string>
+    #include <SDL.h>
+    #include <jni.h>
+    #include <string>
 
 using namespace OpenRCT2;
 
@@ -26,7 +28,7 @@ private:
     jobject _zip;
 
 public:
-    ZipArchive(std::string_view path, ZIP_ACCESS access)
+    ZipArchive(std::string_view path, ZipAccess access)
     {
         // retrieve the JNI environment.
         JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
@@ -135,14 +137,14 @@ public:
     }
 };
 
-namespace Zip
+namespace OpenRCT2::Zip
 {
-    std::unique_ptr<IZipArchive> Open(std::string_view path, ZIP_ACCESS access)
+    std::unique_ptr<IZipArchive> Open(std::string_view path, ZipAccess access)
     {
         return std::make_unique<ZipArchive>(path, access);
     }
 
-    std::unique_ptr<IZipArchive> TryOpen(std::string_view path, ZIP_ACCESS access)
+    std::unique_ptr<IZipArchive> TryOpen(std::string_view path, ZipAccess access)
     {
         std::unique_ptr<IZipArchive> result;
         try
@@ -154,7 +156,7 @@ namespace Zip
         }
         return result;
     }
-} // namespace Zip
+} // namespace OpenRCT2::Zip
 
 extern "C" {
 JNIEXPORT jlong JNICALL Java_io_openrct2_ZipArchive_allocBytes(JNIEnv* env, jclass, jbyteArray input, jint numBytes);

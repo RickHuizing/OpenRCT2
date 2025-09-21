@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,22 +9,27 @@
 
 #pragma once
 
-#include "../world/Map.h"
+#include "../world/Location.hpp"
 #include "GameAction.h"
 
-class MapChangeSizeAction final : public GameActionBase<GameCommand::ChangeMapSize>
+namespace OpenRCT2::GameActions
 {
-public:
-    MapChangeSizeAction() = default;
-    MapChangeSizeAction(const TileCoordsXY& targetSize);
+    class MapChangeSizeAction final : public GameActionBase<GameCommand::ChangeMapSize>
+    {
+    public:
+        MapChangeSizeAction() = default;
+        MapChangeSizeAction(const TileCoordsXY& targetSize);
+        MapChangeSizeAction(const TileCoordsXY& targetSize, const TileCoordsXY& shift);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
-    uint16_t GetActionFlags() const override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    TileCoordsXY _targetSize;
-};
+    private:
+        TileCoordsXY _targetSize;
+        TileCoordsXY _shift;
+    };
+} // namespace OpenRCT2::GameActions

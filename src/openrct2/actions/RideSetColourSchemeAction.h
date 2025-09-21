@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,22 +11,25 @@
 
 #include "GameAction.h"
 
-class RideSetColourSchemeAction final : public GameActionBase<GameCommand::SetColourScheme>
+namespace OpenRCT2::GameActions
 {
-private:
-    CoordsXYZD _loc;
-    track_type_t _trackType{};
-    uint16_t _newColourScheme{};
+    class RideSetColourSchemeAction final : public GameActionBase<GameCommand::SetColourScheme>
+    {
+    private:
+        CoordsXYZD _loc;
+        TrackElemType _trackType{};
+        uint16_t _newColourScheme{};
 
-public:
-    RideSetColourSchemeAction() = default;
-    RideSetColourSchemeAction(const CoordsXYZD& location, track_type_t trackType, uint16_t newColourScheme);
+    public:
+        RideSetColourSchemeAction() = default;
+        RideSetColourSchemeAction(const CoordsXYZD& location, TrackElemType trackType, uint16_t newColourScheme);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

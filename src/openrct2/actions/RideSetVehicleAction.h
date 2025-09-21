@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,37 +11,40 @@
 
 #include "GameAction.h"
 
-enum class RideSetVehicleType : uint8_t
+namespace OpenRCT2::GameActions
 {
-    NumTrains,
-    NumCarsPerTrain,
-    RideEntry,
-    TrainsReversed,
-    Count,
-};
+    enum class RideSetVehicleType : uint8_t
+    {
+        NumTrains,
+        NumCarsPerTrain,
+        RideEntry,
+        TrainsReversed,
+        Count,
+    };
 
-class RideSetVehicleAction final : public GameActionBase<GameCommand::SetRideVehicles>
-{
-private:
-    RideId _rideIndex{ RideId::GetNull() };
-    RideSetVehicleType _type{};
-    uint16_t _value{};
-    uint8_t _colour{};
+    class RideSetVehicleAction final : public GameActionBase<GameCommand::SetRideVehicles>
+    {
+    private:
+        RideId _rideIndex{ RideId::GetNull() };
+        RideSetVehicleType _type{};
+        uint16_t _value{};
+        uint8_t _colour{};
 
-public:
-    RideSetVehicleAction() = default;
-    RideSetVehicleAction(RideId rideIndex, RideSetVehicleType type, uint16_t value, uint8_t colour = 0);
+    public:
+        RideSetVehicleAction() = default;
+        RideSetVehicleAction(RideId rideIndex, RideSetVehicleType type, uint16_t value, uint8_t colour = 0);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    bool RideIsVehicleTypeValid(const Ride& ride) const;
+    private:
+        bool RideIsVehicleTypeValid(const Ride& ride) const;
 
-    static_assert(sizeof(_value) >= sizeof(ObjectEntryIndex));
-};
+        static_assert(sizeof(_value) >= sizeof(ObjectEntryIndex));
+    };
+} // namespace OpenRCT2::GameActions

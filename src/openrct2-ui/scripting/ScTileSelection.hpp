@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,9 +11,8 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include <openrct2/common.h>
-#    include <openrct2/scripting/Duktape.hpp>
-#    include <openrct2/world/Map.h>
+    #include <openrct2/scripting/Duktape.hpp>
+    #include <openrct2/world/MapSelection.h>
 
 namespace OpenRCT2::Scripting
 {
@@ -30,7 +29,7 @@ namespace OpenRCT2::Scripting
 
         DukValue range_get() const
         {
-            if (gMapSelectFlags & MAP_SELECT_FLAG_ENABLE)
+            if (gMapSelectFlags.has(MapSelectFlag::enable))
             {
                 DukObject range(_ctx);
 
@@ -62,13 +61,13 @@ namespace OpenRCT2::Scripting
                     gMapSelectPositionA.y = range->GetTop();
                     gMapSelectPositionB.x = range->GetRight();
                     gMapSelectPositionB.y = range->GetBottom();
-                    gMapSelectType = MAP_SELECT_TYPE_FULL;
-                    gMapSelectFlags |= MAP_SELECT_FLAG_ENABLE;
+                    gMapSelectType = MapSelectType::full;
+                    gMapSelectFlags.set(MapSelectFlag::enable);
                 }
             }
             else
             {
-                gMapSelectFlags &= ~MAP_SELECT_FLAG_ENABLE;
+                gMapSelectFlags.unset(MapSelectFlag::enable);
             }
             MapInvalidateSelectionRect();
         }
@@ -76,7 +75,7 @@ namespace OpenRCT2::Scripting
         DukValue tiles_get() const
         {
             duk_push_array(_ctx);
-            if (gMapSelectFlags & MAP_SELECT_FLAG_ENABLE_CONSTRUCT)
+            if (gMapSelectFlags.has(MapSelectFlag::enableConstruct))
             {
                 duk_uarridx_t index = 0;
                 for (const auto& tile : gMapSelectionTiles)
@@ -118,12 +117,12 @@ namespace OpenRCT2::Scripting
 
             if (gMapSelectionTiles.empty())
             {
-                gMapSelectFlags &= ~MAP_SELECT_FLAG_ENABLE_CONSTRUCT;
-                gMapSelectFlags &= ~MAP_SELECT_FLAG_GREEN;
+                gMapSelectFlags.unset(MapSelectFlag::enableConstruct);
+                gMapSelectFlags.unset(MapSelectFlag::green);
             }
             else
             {
-                gMapSelectFlags |= MAP_SELECT_FLAG_ENABLE_CONSTRUCT;
+                gMapSelectFlags.set(MapSelectFlag::enableConstruct);
             }
             MapInvalidateMapSelectionTiles();
         }

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,14 +11,12 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "../../../Context.h"
-#    include "../../../common.h"
-#    include "../../../management/NewsItem.h"
-#    include "../../Duktape.hpp"
-#    include "../../ScriptEngine.h"
+    #include "../../../Context.h"
+    #include "../../../management/NewsItem.h"
+    #include "../../Duktape.hpp"
+    #include "../../ScriptEngine.h"
 
-#    include <algorithm>
-#    include <string>
+    #include <string>
 
 namespace OpenRCT2::Scripting
 {
@@ -29,13 +27,13 @@ namespace OpenRCT2::Scripting
     inline News::ItemType GetParkMessageType(const std::string& key)
     {
         // Get the first ItemType that appears in ParkMessageTypeStrings that isn't Null
-        auto firstType = static_cast<uint8_t>(News::ItemType::Ride);
+        auto firstType = static_cast<uint8_t>(News::ItemType::ride);
 
         auto begin = std::begin(ParkMessageTypeStrings);
         auto end = std::end(ParkMessageTypeStrings);
 
         auto it = std::find(begin, end, key);
-        return it != end ? static_cast<News::ItemType>(firstType + std::distance(begin, it)) : News::ItemType::Blank;
+        return it != end ? static_cast<News::ItemType>(firstType + std::distance(begin, it)) : News::ItemType::blank;
     }
 
     inline std::string GetParkMessageType(News::ItemType type)
@@ -50,15 +48,16 @@ namespace OpenRCT2::Scripting
         return {};
     }
 
-    template<> inline News::Item FromDuk(const DukValue& value)
+    template<>
+    inline News::Item FromDuk(const DukValue& value)
     {
         News::Item result{};
-        result.Type = GetParkMessageType(value["type"].as_string());
-        result.Assoc = value["subject"].as_int();
-        result.Ticks = value["tickCount"].as_int();
-        result.MonthYear = value["month"].as_int();
-        result.Day = value["day"].as_int();
-        result.Text = value["text"].as_string();
+        result.type = GetParkMessageType(value["type"].as_string());
+        result.assoc = value["subject"].as_uint();
+        result.ticks = value["tickCount"].as_uint();
+        result.monthYear = value["month"].as_uint();
+        result.day = value["day"].as_uint();
+        result.text = value["text"].as_string();
         return result;
     }
 

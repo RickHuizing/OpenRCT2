@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,55 +9,64 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "ScriptEngine.h"
+    #include "ScriptEngine.h"
 
-#    include "../PlatformEnvironment.h"
-#    include "../actions/CustomAction.h"
-#    include "../actions/GameAction.h"
-#    include "../actions/RideCreateAction.h"
-#    include "../actions/StaffHireNewAction.h"
-#    include "../config/Config.h"
-#    include "../core/EnumMap.hpp"
-#    include "../core/File.h"
-#    include "../core/FileScanner.h"
-#    include "../core/Path.hpp"
-#    include "../interface/InteractiveConsole.h"
-#    include "../platform/Platform.h"
-#    include "Duktape.hpp"
-#    include "bindings/entity/ScEntity.hpp"
-#    include "bindings/entity/ScGuest.hpp"
-#    include "bindings/entity/ScLitter.hpp"
-#    include "bindings/entity/ScPeep.hpp"
-#    include "bindings/entity/ScStaff.hpp"
-#    include "bindings/entity/ScVehicle.hpp"
-#    include "bindings/game/ScCheats.hpp"
-#    include "bindings/game/ScConsole.hpp"
-#    include "bindings/game/ScContext.hpp"
-#    include "bindings/game/ScDisposable.hpp"
-#    include "bindings/game/ScProfiler.hpp"
-#    include "bindings/network/ScNetwork.hpp"
-#    include "bindings/network/ScPlayer.hpp"
-#    include "bindings/network/ScPlayerGroup.hpp"
-#    include "bindings/network/ScSocket.hpp"
-#    include "bindings/object/ScInstalledObject.hpp"
-#    include "bindings/object/ScObject.hpp"
-#    include "bindings/object/ScObjectManager.h"
-#    include "bindings/ride/ScRide.hpp"
-#    include "bindings/ride/ScRideStation.hpp"
-#    include "bindings/world/ScClimate.hpp"
-#    include "bindings/world/ScDate.hpp"
-#    include "bindings/world/ScMap.hpp"
-#    include "bindings/world/ScPark.hpp"
-#    include "bindings/world/ScParkMessage.hpp"
-#    include "bindings/world/ScResearch.hpp"
-#    include "bindings/world/ScScenario.hpp"
-#    include "bindings/world/ScTile.hpp"
-#    include "bindings/world/ScTileElement.hpp"
+    #include "../PlatformEnvironment.h"
+    #include "../actions/BannerPlaceAction.h"
+    #include "../actions/CustomAction.h"
+    #include "../actions/GameAction.h"
+    #include "../actions/LargeSceneryPlaceAction.h"
+    #include "../actions/RideCreateAction.h"
+    #include "../actions/StaffHireNewAction.h"
+    #include "../actions/WallPlaceAction.h"
+    #include "../config/Config.h"
+    #include "../core/EnumMap.hpp"
+    #include "../core/File.h"
+    #include "../core/FileScanner.h"
+    #include "../core/Path.hpp"
+    #include "../interface/InteractiveConsole.h"
+    #include "../platform/Platform.h"
+    #include "Duktape.hpp"
+    #include "bindings/entity/ScBalloon.hpp"
+    #include "bindings/entity/ScEntity.hpp"
+    #include "bindings/entity/ScGuest.hpp"
+    #include "bindings/entity/ScLitter.hpp"
+    #include "bindings/entity/ScMoneyEffect.hpp"
+    #include "bindings/entity/ScParticle.hpp"
+    #include "bindings/entity/ScPeep.hpp"
+    #include "bindings/entity/ScStaff.hpp"
+    #include "bindings/entity/ScVehicle.hpp"
+    #include "bindings/game/ScCheats.hpp"
+    #include "bindings/game/ScConsole.hpp"
+    #include "bindings/game/ScContext.hpp"
+    #include "bindings/game/ScDisposable.hpp"
+    #include "bindings/game/ScPlugin.hpp"
+    #include "bindings/game/ScProfiler.hpp"
+    #include "bindings/network/ScNetwork.hpp"
+    #include "bindings/network/ScPlayer.hpp"
+    #include "bindings/network/ScPlayerGroup.hpp"
+    #include "bindings/network/ScSocket.hpp"
+    #include "bindings/object/ScInstalledObject.hpp"
+    #include "bindings/object/ScObject.hpp"
+    #include "bindings/object/ScObjectManager.h"
+    #include "bindings/ride/ScRide.hpp"
+    #include "bindings/ride/ScRideStation.hpp"
+    #include "bindings/world/ScAward.hpp"
+    #include "bindings/world/ScClimate.hpp"
+    #include "bindings/world/ScDate.hpp"
+    #include "bindings/world/ScMap.hpp"
+    #include "bindings/world/ScPark.hpp"
+    #include "bindings/world/ScParkMessage.hpp"
+    #include "bindings/world/ScResearch.hpp"
+    #include "bindings/world/ScScenario.hpp"
+    #include "bindings/world/ScTile.hpp"
+    #include "bindings/world/ScTileElement.hpp"
 
-#    include <iostream>
-#    include <memory>
-#    include <stdexcept>
-#    include <string>
+    #include <cassert>
+    #include <iostream>
+    #include <memory>
+    #include <stdexcept>
+    #include <string>
 
 using namespace OpenRCT2;
 using namespace OpenRCT2::Scripting;
@@ -395,9 +404,10 @@ void ScriptEngine::Initialise()
         throw std::runtime_error("Script engine already initialised.");
 
     auto ctx = static_cast<duk_context*>(_context);
+    ScAward::Register(ctx);
     ScCheats::Register(ctx);
     ScClimate::Register(ctx);
-    ScClimateState::Register(ctx);
+    ScWeatherState::Register(ctx);
     ScConfiguration::Register(ctx);
     ScConsole::Register(ctx);
     ScContext::Register(ctx);
@@ -411,6 +421,7 @@ void ScriptEngine::Initialise()
     ScSceneryObject::Register(ctx);
     ScSmallSceneryObject::Register(ctx);
     ScLargeSceneryObject::Register(ctx);
+    ScLargeSceneryObjectTile::Register(ctx);
     ScWallObject::Register(ctx);
     ScFootpathAdditionObject::Register(ctx);
     ScBannerObject::Register(ctx);
@@ -431,18 +442,25 @@ void ScriptEngine::Initialise()
     ScTrackSegment::Register(ctx);
     ScEntity::Register(ctx);
     ScLitter::Register(ctx);
+    ScBalloon::Register(ctx);
+    ScMoneyEffect::Register(ctx);
     ScVehicle::Register(ctx);
+    ScCrashedVehicleParticle::Register(ctx);
     ScPeep::Register(ctx);
     ScGuest::Register(ctx);
     ScThought::Register(ctx);
-#    ifndef DISABLE_NETWORK
+    #ifndef DISABLE_NETWORK
     ScSocket::Register(ctx);
     ScListener::Register(ctx);
-#    endif
+    #endif
     ScScenario::Register(ctx);
     ScScenarioObjective::Register(ctx);
     ScPatrolArea::Register(ctx);
     ScStaff::Register(ctx);
+    ScHandyman::Register(ctx);
+    ScMechanic::Register(ctx);
+    ScSecurity::Register(ctx);
+    ScPlugin::Register(ctx);
 
     dukglue_register_global(ctx, std::make_shared<ScCheats>(), "cheats");
     dukglue_register_global(ctx, std::make_shared<ScClimate>(), "climate");
@@ -452,6 +470,7 @@ void ScriptEngine::Initialise()
     dukglue_register_global(ctx, std::make_shared<ScMap>(ctx), "map");
     dukglue_register_global(ctx, std::make_shared<ScNetwork>(ctx), "network");
     dukglue_register_global(ctx, std::make_shared<ScPark>(ctx), "park");
+    dukglue_register_global(ctx, std::make_shared<ScPlugin>(), "pluginManager");
     dukglue_register_global(ctx, std::make_shared<ScProfiler>(ctx), "profiler");
     dukglue_register_global(ctx, std::make_shared<ScScenario>(), "scenario");
     dukglue_register_global(ctx, std::make_shared<ScObjectManager>(), "objectManager");
@@ -569,7 +588,7 @@ void ScriptEngine::RefreshPlugins()
     }
 
     // Turn on hot reload if not already enabled
-    if (!_hotReloadingInitialised && gConfigPlugin.EnableHotReloading && NetworkGetMode() == NETWORK_MODE_NONE)
+    if (!_hotReloadingInitialised && Config::Get().plugin.EnableHotReloading && Network::GetMode() == Network::Mode::none)
     {
         SetupHotReloading();
     }
@@ -579,7 +598,7 @@ std::vector<std::string> ScriptEngine::GetPluginFiles() const
 {
     // Scan for .js files in plugin directory
     std::vector<std::string> pluginFiles;
-    auto base = _env.GetDirectoryPath(DIRBASE::USER, DIRID::PLUGIN);
+    auto base = _env.GetDirectoryPath(DirBase::user, DirId::plugins);
     if (Path::DirectoryExists(base))
     {
         auto pattern = Path::Combine(base, u8"*.js");
@@ -702,7 +721,7 @@ void ScriptEngine::LoadPlugin(std::shared_ptr<Plugin>& plugin)
         if (!plugin->IsLoaded())
         {
             const auto& metadata = plugin->GetMetadata();
-            if (metadata.MinApiVersion <= OPENRCT2_PLUGIN_API_VERSION)
+            if (metadata.MinApiVersion <= kPluginApiVersion)
             {
                 ScriptExecutionInfo::PluginScope scope(_execInfo, plugin, false);
                 plugin->Load();
@@ -781,7 +800,7 @@ void ScriptEngine::SetupHotReloading()
 {
     try
     {
-        auto base = _env.GetDirectoryPath(DIRBASE::USER, DIRID::PLUGIN);
+        auto base = _env.GetDirectoryPath(DirBase::user, DirId::plugins);
         if (Path::DirectoryExists(base))
         {
             _pluginFileWatcher = std::make_unique<FileWatcher>(base);
@@ -889,8 +908,8 @@ void ScriptEngine::StartTransientPlugins()
 
 bool ScriptEngine::ShouldStartPlugin(const std::shared_ptr<Plugin>& plugin)
 {
-    auto networkMode = NetworkGetMode();
-    if (networkMode == NETWORK_MODE_CLIENT)
+    auto networkMode = Network::GetMode();
+    if (networkMode == Network::Mode::client)
     {
         // Only client plugins and plugins downloaded from server should be started
         const auto& metadata = plugin->GetMetadata();
@@ -905,6 +924,11 @@ bool ScriptEngine::ShouldStartPlugin(const std::shared_ptr<Plugin>& plugin)
 
 void ScriptEngine::Tick()
 {
+    if (!_initialised)
+    {
+        return;
+    }
+
     PROFILED_FUNCTION();
 
     CheckAndStartPlugins();
@@ -1048,7 +1072,7 @@ void ScriptEngine::RemoveNetworkPlugins()
     }
 }
 
-GameActions::Result ScriptEngine::QueryOrExecuteCustomGameAction(const CustomAction& customAction, bool isExecute)
+GameActions::Result ScriptEngine::QueryOrExecuteCustomGameAction(const GameActions::CustomAction& customAction, bool isExecute)
 {
     std::string actionz = customAction.GetId();
     auto kvp = _customActions.find(actionz);
@@ -1069,7 +1093,7 @@ GameActions::Result ScriptEngine::QueryOrExecuteCustomGameAction(const CustomAct
         }
 
         std::vector<DukValue> pluginCallArgs;
-        if (customActionInfo.Owner->GetTargetAPIVersion() <= API_VERSION_68_CUSTOM_ACTION_ARGS)
+        if (customActionInfo.Owner->GetTargetAPIVersion() <= kApiVersionCustomActionArgs)
         {
             pluginCallArgs = { *dukArgs };
         }
@@ -1119,7 +1143,7 @@ GameActions::Result ScriptEngine::DukToGameActionResult(const DukValue& d)
         if (!expenditureType.empty())
         {
             auto expenditure = StringToExpenditureType(expenditureType);
-            if (expenditure != ExpenditureType::Count)
+            if (expenditure != ExpenditureType::count)
             {
                 result.Expenditure = expenditure;
             }
@@ -1168,10 +1192,10 @@ ExpenditureType ScriptEngine::StringToExpenditureType(std::string_view expenditu
     {
         return static_cast<ExpenditureType>(std::distance(std::begin(ExpenditureTypes), it));
     }
-    return ExpenditureType::Count;
+    return ExpenditureType::count;
 }
 
-DukValue ScriptEngine::GameActionResultToDuk(const GameAction& action, const GameActions::Result& result)
+DukValue ScriptEngine::GameActionResultToDuk(const GameActions::GameAction& action, const GameActions::Result& result)
 {
     DukStackFrame frame(_context);
     DukObject obj(_context);
@@ -1183,7 +1207,7 @@ DukValue ScriptEngine::GameActionResultToDuk(const GameAction& action, const Gam
         obj.Set("errorMessage", result.GetErrorMessage());
     }
 
-    if (result.Cost != MONEY64_UNDEFINED)
+    if (result.Cost != kMoney64Undefined)
     {
         obj.Set("cost", result.Cost);
     }
@@ -1191,7 +1215,7 @@ DukValue ScriptEngine::GameActionResultToDuk(const GameAction& action, const Gam
     {
         obj.Set("position", ToDuk(_context, result.Position));
     }
-    if (result.Expenditure != ExpenditureType::Count)
+    if (result.Expenditure != ExpenditureType::count)
     {
         obj.Set("expenditureType", ExpenditureTypeToString(result.Expenditure));
     }
@@ -1210,12 +1234,32 @@ DukValue ScriptEngine::GameActionResultToDuk(const GameAction& action, const Gam
     {
         if (result.Error == GameActions::Status::Ok)
         {
-            const auto actionResult = result.GetData<StaffHireNewActionResult>();
+            const auto actionResult = result.GetData<GameActions::StaffHireNewActionResult>();
             if (!actionResult.StaffEntityId.IsNull())
             {
                 obj.Set("peep", actionResult.StaffEntityId.ToUnderlying());
             }
         }
+    }
+    // BannerPlaceAction, LargeSceneryPlaceAction, WallPlaceAction
+    auto bannerId = BannerIndex::GetNull();
+    switch (action.GetType())
+    {
+        case GameCommand::PlaceBanner:
+            bannerId = result.GetData<GameActions::BannerPlaceActionResult>().bannerId;
+            break;
+        case GameCommand::PlaceLargeScenery:
+            bannerId = result.GetData<GameActions::LargeSceneryPlaceActionResult>().bannerId;
+            break;
+        case GameCommand::PlaceWall:
+            bannerId = result.GetData<GameActions::WallPlaceActionResult>().BannerId;
+            break;
+        default:
+            break;
+    }
+    if (!bannerId.IsNull())
+    {
+        obj.Set("bannerIndex", bannerId.ToUnderlying());
     }
 
     return obj.Take();
@@ -1254,7 +1298,7 @@ void ScriptEngine::RemoveCustomGameActions(const std::shared_ptr<Plugin>& plugin
     }
 }
 
-class DukToGameActionParameterVisitor : public GameActionParameterVisitor
+class DukToGameActionParameterVisitor : public GameActions::GameActionParameterVisitor
 {
 private:
     DukValue _dukValue;
@@ -1281,7 +1325,7 @@ public:
     }
 };
 
-class DukFromGameActionParameterVisitor : public GameActionParameterVisitor
+class DukFromGameActionParameterVisitor : public GameActions::GameActionParameterVisitor
 {
 private:
     DukObject& _dukObject;
@@ -1320,7 +1364,6 @@ const static EnumMap<GameCommand> ActionNameToType = {
     { "bannersetname", GameCommand::SetBannerName },
     { "bannersetstyle", GameCommand::SetBannerStyle },
     { "clearscenery", GameCommand::ClearScenery },
-    { "climateset", GameCommand::SetClimate },
     { "footpathplace", GameCommand::PlacePath },
     { "footpathlayoutplace", GameCommand::PlacePathLayout },
     { "footpathremove", GameCommand::RemovePath },
@@ -1408,7 +1451,7 @@ static std::string GetActionName(GameCommand commandId)
     return {};
 }
 
-static std::unique_ptr<GameAction> CreateGameActionFromActionId(const std::string& name)
+static std::unique_ptr<GameActions::GameAction> CreateGameActionFromActionId(const std::string& name)
 {
     auto result = ActionNameToType.find(name);
     if (result != ActionNameToType.end())
@@ -1418,11 +1461,11 @@ static std::unique_ptr<GameAction> CreateGameActionFromActionId(const std::strin
     return nullptr;
 }
 
-void ScriptEngine::RunGameActionHooks(const GameAction& action, GameActions::Result& result, bool isExecute)
+void ScriptEngine::RunGameActionHooks(const GameActions::GameAction& action, GameActions::Result& result, bool isExecute)
 {
     DukStackFrame frame(_context);
 
-    auto hookType = isExecute ? HOOK_TYPE::ACTION_EXECUTE : HOOK_TYPE::ACTION_QUERY;
+    auto hookType = isExecute ? HookType::actionExecute : HookType::actionQuery;
     if (_hookEngine.HasSubscriptions(hookType))
     {
         DukObject obj(_context);
@@ -1430,7 +1473,7 @@ void ScriptEngine::RunGameActionHooks(const GameAction& action, GameActions::Res
         auto actionId = action.GetType();
         if (action.GetType() == GameCommand::Custom)
         {
-            auto customAction = static_cast<const CustomAction&>(action);
+            auto customAction = static_cast<const GameActions::CustomAction&>(action);
             obj.Set("action", customAction.GetId());
 
             auto dukArgs = DuktapeTryParseJson(_context, customAction.GetJson());
@@ -1454,8 +1497,8 @@ void ScriptEngine::RunGameActionHooks(const GameAction& action, GameActions::Res
 
             DukObject args(_context);
             DukFromGameActionParameterVisitor visitor(args);
-            const_cast<GameAction&>(action).AcceptParameters(visitor);
-            const_cast<GameAction&>(action).AcceptFlags(visitor);
+            const_cast<GameActions::GameAction&>(action).AcceptParameters(visitor);
+            const_cast<GameActions::GameAction&>(action).AcceptFlags(visitor);
             obj.Set("args", args.Take());
         }
 
@@ -1487,7 +1530,7 @@ void ScriptEngine::RunGameActionHooks(const GameAction& action, GameActions::Res
     }
 }
 
-std::unique_ptr<GameAction> ScriptEngine::CreateGameAction(
+std::unique_ptr<GameActions::GameAction> ScriptEngine::CreateGameAction(
     const std::string& actionid, const DukValue& args, const std::string& pluginName)
 {
     auto action = CreateGameActionFromActionId(actionid);
@@ -1516,11 +1559,11 @@ std::unique_ptr<GameAction> ScriptEngine::CreateGameAction(
     auto jsonz = duk_json_encode(ctx, -1);
     auto json = std::string(jsonz);
     duk_pop(ctx);
-    auto customAction = std::make_unique<CustomAction>(actionid, json, pluginName);
+    auto customAction = std::make_unique<GameActions::CustomAction>(actionid, json, pluginName);
 
-    if (customAction->GetPlayer() == -1 && NetworkGetMode() != NETWORK_MODE_NONE)
+    if (customAction->GetPlayer() == -1 && Network::GetMode() != Network::Mode::none)
     {
-        customAction->SetPlayer(NetworkGetCurrentPlayerId());
+        customAction->SetPlayer(Network::GetCurrentPlayerId());
     }
     return customAction;
 }
@@ -1535,7 +1578,7 @@ void ScriptEngine::LoadSharedStorage()
 {
     InitSharedStorage();
 
-    auto path = _env.GetFilePath(PATHID::PLUGIN_STORE);
+    auto path = _env.GetFilePath(PathId::pluginStore);
     try
     {
         if (File::Exists(path))
@@ -1557,7 +1600,7 @@ void ScriptEngine::LoadSharedStorage()
 
 void ScriptEngine::SaveSharedStorage()
 {
-    auto path = _env.GetFilePath(PATHID::PLUGIN_STORE);
+    auto path = _env.GetFilePath(PathId::pluginStore);
     try
     {
         _sharedStorage.push();
@@ -1600,7 +1643,7 @@ IntervalHandle ScriptEngine::AllocateHandle()
     const auto nextHandle = _nextIntervalHandle;
 
     // In case of overflow start from 1 again
-    _nextIntervalHandle = std::max(_nextIntervalHandle + 1U, 1U);
+    _nextIntervalHandle = std::max(_nextIntervalHandle + 1u, 1u);
 
     return nextHandle;
 }
@@ -1711,16 +1754,16 @@ void ScriptEngine::RemoveIntervals(const std::shared_ptr<Plugin>& plugin)
     }
 }
 
-#    ifndef DISABLE_NETWORK
+    #ifndef DISABLE_NETWORK
 void ScriptEngine::AddSocket(const std::shared_ptr<ScSocketBase>& socket)
 {
     _sockets.push_back(socket);
 }
-#    endif
+    #endif
 
 void ScriptEngine::UpdateSockets()
 {
-#    ifndef DISABLE_NETWORK
+    #ifndef DISABLE_NETWORK
     // Use simple for i loop as Update calls can modify the list
     auto it = _sockets.begin();
     while (it != _sockets.end())
@@ -1736,12 +1779,12 @@ void ScriptEngine::UpdateSockets()
             it++;
         }
     }
-#    endif
+    #endif
 }
 
 void ScriptEngine::RemoveSockets(const std::shared_ptr<Plugin>& plugin)
 {
-#    ifndef DISABLE_NETWORK
+    #ifndef DISABLE_NETWORK
     auto it = _sockets.begin();
     while (it != _sockets.end())
     {
@@ -1756,7 +1799,7 @@ void ScriptEngine::RemoveSockets(const std::shared_ptr<Plugin>& plugin)
             it++;
         }
     }
-#    endif
+    #endif
 }
 
 std::string OpenRCT2::Scripting::Stringify(const DukValue& val)
@@ -1774,7 +1817,7 @@ std::string OpenRCT2::Scripting::ProcessString(const DukValue& value)
 bool OpenRCT2::Scripting::IsGameStateMutable()
 {
     // Allow single player to alter game state anywhere
-    if (NetworkGetMode() == NETWORK_MODE_NONE)
+    if (Network::GetMode() == Network::Mode::none)
     {
         return true;
     }
@@ -1787,7 +1830,7 @@ bool OpenRCT2::Scripting::IsGameStateMutable()
 void OpenRCT2::Scripting::ThrowIfGameStateNotMutable()
 {
     // Allow single player to alter game state anywhere
-    if (NetworkGetMode() != NETWORK_MODE_NONE)
+    if (Network::GetMode() != Network::Mode::none)
     {
         auto& scriptEngine = GetContext()->GetScriptEngine();
         auto& execInfo = scriptEngine.GetExecInfo();
@@ -1809,7 +1852,7 @@ int32_t OpenRCT2::Scripting::GetTargetAPIVersion()
     if (plugin == nullptr)
     {
         // For in-game console, default to the current API version
-        return OPENRCT2_PLUGIN_API_VERSION;
+        return kPluginApiVersion;
     }
 
     return plugin->GetTargetAPIVersion();

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,28 +9,30 @@
 
 #pragma once
 
-#include "../world/TileElement.h"
 #include "GameAction.h"
 
-class SmallSceneryRemoveAction final : public GameActionBase<GameCommand::RemoveScenery>
+namespace OpenRCT2::GameActions
 {
-private:
-    CoordsXYZ _loc;
-    uint8_t _quadrant{};
-    ObjectEntryIndex _sceneryType{};
+    class SmallSceneryRemoveAction final : public GameActionBase<GameCommand::RemoveScenery>
+    {
+    private:
+        CoordsXYZ _loc;
+        uint8_t _quadrant{};
+        ObjectEntryIndex _sceneryType{};
 
-public:
-    SmallSceneryRemoveAction() = default;
-    SmallSceneryRemoveAction(const CoordsXYZ& location, uint8_t quadrant, ObjectEntryIndex sceneryType);
+    public:
+        SmallSceneryRemoveAction() = default;
+        SmallSceneryRemoveAction(const CoordsXYZ& location, uint8_t quadrant, ObjectEntryIndex sceneryType);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    TileElement* FindSceneryElement() const;
-};
+    private:
+        TileElement* FindSceneryElement() const;
+    };
+} // namespace OpenRCT2::GameActions

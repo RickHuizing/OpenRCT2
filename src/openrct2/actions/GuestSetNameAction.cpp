@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,96 +11,99 @@
 
 #include "../Cheats.h"
 #include "../Context.h"
+#include "../Diagnostic.h"
+#include "../GameState.h"
 #include "../core/MemoryStream.h"
 #include "../drawing/Drawing.h"
 #include "../entity/EntityRegistry.h"
-#include "../interface/Window.h"
-#include "../localisation/Localisation.h"
 #include "../localisation/StringIds.h"
 #include "../windows/Intent.h"
 #include "../world/Park.h"
 
-GuestSetNameAction::GuestSetNameAction(EntityId spriteIndex, const std::string& name)
-    : _spriteIndex(spriteIndex)
-    , _name(name)
+namespace OpenRCT2::GameActions
 {
-}
-
-EntityId GuestSetNameAction::GetSpriteIndex() const
-{
-    return _spriteIndex;
-}
-
-std::string GuestSetNameAction::GetGuestName() const
-{
-    return _name;
-}
-
-void GuestSetNameAction::AcceptParameters(GameActionParameterVisitor& visitor)
-{
-    visitor.Visit("peep", _spriteIndex);
-    visitor.Visit("name", _name);
-}
-
-uint16_t GuestSetNameAction::GetActionFlags() const
-{
-    return GameAction::GetActionFlags() | GameActions::Flags::AllowWhilePaused;
-}
-
-void GuestSetNameAction::Serialise(DataSerialiser& stream)
-{
-    GameAction::Serialise(stream);
-
-    stream << DS_TAG(_spriteIndex) << DS_TAG(_name);
-}
-
-GameActions::Result GuestSetNameAction::Query() const
-{
-    if (_spriteIndex.ToUnderlying() >= MAX_ENTITIES || _spriteIndex.IsNull())
+    GuestSetNameAction::GuestSetNameAction(EntityId spriteIndex, const std::string& name)
+        : _spriteIndex(spriteIndex)
+        , _name(name)
     {
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_NAME_GUEST, STR_NONE);
     }
 
-    auto guest = TryGetEntity<Guest>(_spriteIndex);
-    if (guest == nullptr)
+    EntityId GuestSetNameAction::GetSpriteIndex() const
     {
-        LOG_WARNING("Invalid game command for sprite %u", _spriteIndex);
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_NAME_GUEST, STR_NONE);
+        return _spriteIndex;
     }
 
-    return GameActions::Result();
-}
-
-GameActions::Result GuestSetNameAction::Execute() const
-{
-    auto guest = TryGetEntity<Guest>(_spriteIndex);
-    if (guest == nullptr)
+    std::string GuestSetNameAction::GetGuestName() const
     {
-        LOG_WARNING("Invalid game command for sprite %u", _spriteIndex);
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_NAME_GUEST, STR_NONE);
+        return _name;
     }
 
-    auto curName = guest->GetName();
-    if (curName == _name)
+    void GuestSetNameAction::AcceptParameters(GameActionParameterVisitor& visitor)
     {
-        return GameActions::Result();
+        visitor.Visit("peep", _spriteIndex);
+        visitor.Visit("name", _name);
     }
 
-    if (!guest->SetName(_name))
+    uint16_t GuestSetNameAction::GetActionFlags() const
     {
-        return GameActions::Result(GameActions::Status::Unknown, STR_CANT_NAME_GUEST, STR_NONE);
+        return GameAction::GetActionFlags() | Flags::AllowWhilePaused;
     }
 
-    // Easter egg functions are for guests only
-    guest->HandleEasterEggName();
+    void GuestSetNameAction::Serialise(DataSerialiser& stream)
+    {
+        GameAction::Serialise(stream);
 
-    GfxInvalidateScreen();
+        stream << DS_TAG(_spriteIndex) << DS_TAG(_name);
+    }
 
-    auto intent = Intent(INTENT_ACTION_REFRESH_GUEST_LIST);
-    ContextBroadcastIntent(&intent);
+    Result GuestSetNameAction::Query(GameState_t& gameState) const
+    {
+        if (_spriteIndex.ToUnderlying() >= kMaxEntities || _spriteIndex.IsNull())
+        {
+            return Result(Status::InvalidParameters, STR_CANT_NAME_GUEST, STR_ERR_VALUE_OUT_OF_RANGE);
+        }
 
-    auto res = GameActions::Result();
-    res.Position = guest->GetLocation();
+        auto guest = getGameState().entities.TryGetEntity<Guest>(_spriteIndex);
+        if (guest == nullptr)
+        {
+            LOG_ERROR("Guest entity not found for spriteIndex %u", _spriteIndex);
+            return Result(Status::InvalidParameters, STR_CANT_NAME_GUEST, kStringIdNone);
+        }
 
-    return res;
-}
+        return Result();
+    }
+
+    Result GuestSetNameAction::Execute(GameState_t& gameState) const
+    {
+        auto guest = getGameState().entities.TryGetEntity<Guest>(_spriteIndex);
+        if (guest == nullptr)
+        {
+            LOG_ERROR("Guest entity not found for spriteIndex %u", _spriteIndex);
+            return Result(Status::InvalidParameters, STR_CANT_NAME_GUEST, kStringIdNone);
+        }
+
+        auto curName = guest->GetName();
+        if (curName == _name)
+        {
+            return Result();
+        }
+
+        if (!guest->SetName(_name))
+        {
+            return Result(Status::Unknown, STR_CANT_NAME_GUEST, kStringIdNone);
+        }
+
+        // Easter egg functions are for guests only
+        guest->HandleEasterEggName();
+
+        GfxInvalidateScreen();
+
+        auto intent = Intent(INTENT_ACTION_REFRESH_GUEST_LIST);
+        ContextBroadcastIntent(&intent);
+
+        auto res = Result();
+        res.Position = guest->GetLocation();
+
+        return res;
+    }
+} // namespace OpenRCT2::GameActions

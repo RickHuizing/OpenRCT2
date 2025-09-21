@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,11 +10,10 @@
 #pragma once
 
 #include "../Cheats.h"
-#include "../common.h"
+#include "../core/FlagHolder.hpp"
+#include "../localisation/StringIdType.h"
 #include "../ride/RideTypes.h"
 #include "../ride/ShopItem.h"
-
-#include <vector>
 
 struct Guest;
 
@@ -43,11 +42,20 @@ enum
     CAMPAIGN_ACTIVE_FLAG = (1 << 7)
 };
 
+namespace OpenRCT2
+{
+    enum class MarketingCampaignFlag : uint8_t
+    {
+        firstWeek,
+    };
+    using MarketingCampaignFlags = FlagHolder<uint8_t, MarketingCampaignFlag>;
+} // namespace OpenRCT2
+
 struct MarketingCampaign
 {
     uint8_t Type{};
     uint8_t WeeksLeft{};
-    uint8_t Flags{};
+    OpenRCT2::MarketingCampaignFlags flags{};
     union
     {
         ::RideId RideId{};
@@ -55,13 +63,9 @@ struct MarketingCampaign
     };
 };
 
-namespace MarketingCampaignFlags
-{
-    constexpr uint8_t FIRST_WEEK = 1 << 0;
-}
-
 extern const money64 AdvertisingCampaignPricePerWeek[ADVERTISING_CAMPAIGN_COUNT];
-extern std::vector<MarketingCampaign> gMarketingCampaigns;
+
+extern const StringId kMarketingCampaignNames[ADVERTISING_CAMPAIGN_COUNT][3];
 
 uint16_t MarketingGetCampaignGuestGenerationProbability(int32_t campaign);
 void MarketingUpdate();

@@ -7,11 +7,12 @@ Includes all git commit authors. Aliases are GitHub usernames or community nickn
 * Michał Janiszewski (janisozaur) - Programming
 * Hielke Morsink (Broxzier) - Programming
 * Tulio Paschoalin Leao (tupaschoal) - Programming
-* Olivier Wervers (Oli414) - Lead OpenGraphics - Programming
 * Matthias Moninger (ZehMatt) - Programming
 * Karst van Galen Last (AuraSpecs) - Lead OpenSoundEffects & OpenMusic
 * Michael Bernardi (mrmbernardi) - Programming
 * Michael Steenbeek (Gymnasiast) - Lead Localisation - Programming
+* Aaron van Geffen (AaronVanGeffen) - Programming
+* Joshua Jacobs (leicestersquare) - Graphic Artist
 
 ## Support team
 * Kenton Boadway (Krutonium) - Lead OpenScenarios
@@ -21,8 +22,8 @@ Includes all git commit authors. Aliases are GitHub usernames or community nickn
 * Marijn van der Werf (marijnvdwerf)
 * (zsilencer)
 * Richard Jenkins (rwjuk)
-* Aaron van Geffen (AaronVanGeffen)
 * Rik Smeets (rik-smeets)
+* Olivier Wervers (Oli414)
 
 ## Long term contributors
 Appreciation for long term contributors to the project having provided substantial work.
@@ -89,7 +90,7 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * Brian Callahan (ibara) - OpenBSD port.
 * Jens Heuseveldt (jensj12) - Mountain tool improvements, misc.
 * Park Joon-Kyu (segfault87) - Allow filtering guests by name
-* Harrison Gentry (hgentry) - Date-changing command, misc.
+* Rachael Arbor (rarbor-old) - Date-changing command, misc.
 * Joshua Moerman (Jaxan) - Minimap cleanup, misc.
 * Nicolas Hawrysh (xp4xbox) - Various (ride) sprite improvements.
 * Albert Morgese (Fusxfaranto) - Shop auto-rotation, unicode uppercasing.
@@ -118,8 +119,14 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * Wenzhao Qiu (qwzhaox) - Misc.
 * Tiago Reul (reul) - Misc.
 * Fredrik Tegnell (fredriktegnell) - Misc.
+* Alex Parisi (alex-parisi) - Added API for returning metadata from all registered plugins.
+* Arnold Zhou (mrmagic2020) - Various plugin additions, new game option, misc.
+* John Dolph (johnwdolph) - Ride music UI, misc.
+* Harry Hopkinson (Harry-Hopkinson) - Added Cheat for guests ignoring price of rides and stalls.
+* Kendall Frey (kendfrey) - Add plugin API for spawning guests
 
 ## Bug fixes & Refactors
+* Claudio Tiecher (janclod)
 * (KirilAngelov)
 * (halfbro)
 * (Myrtle)
@@ -232,6 +239,19 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * Wenzhao Qiu (qwzhaox)
 * Michael Bernardi (mrmbernardi)
 * Aram Kazorian (aramk-hub)
+* Harry Hopkinson (Harry-Hopkinson)
+* Jan Kelemen (jan-kelemen)
+* Cory Ye (CoryfY)
+* Karsten Van Fossan (karstenvanf)
+* Kaavya Ramachandhran (ayvaak)
+* Mike Harvey (harvito)
+* Robert Yan (lewyche)
+* Tom Matalenas (tmatale)
+* Brendan Heinonen (staticinvocation)
+* (QuestionableDeer)
+* David Sungaila (sungaila)
+* Garrett Leach (GarrettLeach)
+* Ruohao (Jater) Xu (jaterx)
 
 ## Toolchain
 * (Balletie) - macOS
@@ -253,6 +273,7 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * Mithun Hunsur (Philpax)
 * (RollingStar)
 * (That Human Being)
+* Alex Marck (ATMarcks)
 
 ## Translation
 * Extracting from original files: Ted John (IntelOrca)
@@ -263,24 +284,27 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * English (UK) - Ted John (IntelOrca), (Tinytimrob)
 * English (US) - Ted John (IntelOrca), Michael Steenbeek (Gymnasiast); small fixes: (LRFLEW), (mike-koch), Harry Lam (daihakken)
 * Catalan - Joan Josep (J0anJosep)
-* Chinese (Simplified) - Naiji Ma (naijim), (izhangfei), Eric Zhao (sczyh30), (Muhhan)
+* Chinese (Simplified) - Naiji Ma (naijim), (izhangfei), Eric Zhao (sczyh30), (Muhhan), Arnold Zhou (mrmagic2020)
 * Chinese (Traditional) - Harry Lam (daihakken)
-* Czech - Martin Černáč (octaroot), (Clonewayx), Tomáš Pazdiora (Aroidzap)
+* Czech - Martin Černáč (octaroot), (Clonewayx), Tomáš Pazdiora (Aroidzap), Ríša Szlachta (tygrysek90) 
 * Danish - Lars P. Sørensen (LPSGizmo)
 * Dutch - Michael Steenbeek (Gymnasiast), Yannic Geurts (xzbobzx), (mrtnptrs), Thomas den Hollander (ThomasdenH), (hostbrute),  Marijn van der Werf (marijnvdwerf), Tom Kroes (ThePsionic), Karst van Galen Last (AuraSpecs); reviewing and discussion: Aaron van Geffen (AaronVanGeffen), (Balletie) and Sijmen Schoon (SijmenSchoon)
 * Esperanto - (tellovishous), Raymond Zhao (rzhao271)
 * Finnish - (DJHasis), (Zode), (TheWing)
 * French - (fbourigault), Joël Troch (JoelTroch), Michael Steenbeek (Gymnasiast), Romain Vigier (rmnvgr), (AziasYur), Hugo Courtial (s0r00t), David Delobel (incyclum), Nicolas Hawrysh (xp4xbox)
+* Galician - (ninjum)
 * German - (danidoedel), (atmaxinger), (Yepoleb), Daniel Kessel (dkessel), Leon (AllGoodNamesAreTaken), (raidcookie), Gilian Rehm (gr33ndev)
+* Hungarian - (anon569)
 * Italian - Luca Andrea Rossi (LucaRed), Precious Ugo Abara (48cfu)
 * Japanese - Aaron van Geffen (AaronVanGeffen), Haruna Chinzei, Nick Hall (nickhall), (jhako), Harry Lam (daihakken)
 * Korean - Willem J. Lee (telk5093), (NeverDruid); small fixes: (kexplo)
 * Norwegian - Hugo Wallenburg (Goddesen)
 * Polish - Adrian Wielgosik (adrian17), (lopezloo), Michał Janiszewski (janisozaur)
 * Portuguese (BR) - (kaudy), (renansimoes), Tulio Paschoalin Leao (tupaschoal)
-* Russian - (Soosisya)
+* Russian - (Soosisya), (andOlga)
 * Spanish - Josué Acevedo (Wirlie), Diego Mateos (dimateos), (frenchiveruti), (mdtrooper), Daniel Trujillo Viedma (gDanix); small fixes: (teapartycthulu)
 * Swedish - (Jinxit), (mharrys), (Slimeyo), Matte Andersson (Nubbie)
+* Ukrainian - (CsyeCokTheSolly), (Veydzher), (Saba4ara)
 
 ## Graphics
 * Yannic Geurts (xzbobzx) - OpenRCT2 Logo
@@ -292,6 +316,7 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * Martijn Kroese (MK98) - Diagonal brakes project
 * Peter van den Berg (Recurious) - Diagonal brakes project
 * Joshua Jacobs - OpenGraphics Spooky Theme
+* (mixiate) - Wooden and Mine Train Rollercoaster flat-to-steep track pieces
 
 ## Music
 * Karst "Jalmaan" van Galen Last (AuraSpecs)
@@ -301,6 +326,7 @@ Appreciation for contributors who have provided substantial work, but are no lon
 * Herman Riddering - Owner of the 35er Voigt, which provided new recordings for the Fairground organ styles.
 * (Skyshard)
 * (Blackend Blue)
+* Andrew Sinclair (Approaching Nirvana) - Progressive style
 
 ## Sound Effects
 * Karst van Galen Last (AuraSpecs)

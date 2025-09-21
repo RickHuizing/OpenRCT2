@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,104 +10,109 @@
 #include "FootpathAdditionRemoveAction.h"
 
 #include "../Cheats.h"
+#include "../Diagnostic.h"
+#include "../GameState.h"
 #include "../OpenRCT2.h"
 #include "../core/MemoryStream.h"
-#include "../interface/Window.h"
 #include "../localisation/StringIds.h"
 #include "../management/Finance.h"
 #include "../world/Footpath.h"
 #include "../world/Location.hpp"
+#include "../world/Map.h"
 #include "../world/Park.h"
-#include "../world/Wall.h"
+#include "../world/tile_element/PathElement.h"
 
-FootpathAdditionRemoveAction::FootpathAdditionRemoveAction(const CoordsXYZ& loc)
-    : _loc(loc)
+namespace OpenRCT2::GameActions
 {
-}
-
-void FootpathAdditionRemoveAction::AcceptParameters(GameActionParameterVisitor& visitor)
-{
-    visitor.Visit(_loc);
-}
-
-uint16_t FootpathAdditionRemoveAction::GetActionFlags() const
-{
-    return GameAction::GetActionFlags();
-}
-
-void FootpathAdditionRemoveAction::Serialise(DataSerialiser& stream)
-{
-    GameAction::Serialise(stream);
-
-    stream << DS_TAG(_loc);
-}
-
-GameActions::Result FootpathAdditionRemoveAction::Query() const
-{
-    if (!LocationValid(_loc))
+    FootpathAdditionRemoveAction::FootpathAdditionRemoveAction(const CoordsXYZ& loc)
+        : _loc(loc)
     {
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_OFF_EDGE_OF_MAP);
     }
 
-    if (!((gScreenFlags & SCREEN_FLAGS_SCENARIO_EDITOR) || gCheatsSandboxMode) && !MapIsLocationOwned(_loc))
+    void FootpathAdditionRemoveAction::AcceptParameters(GameActionParameterVisitor& visitor)
     {
-        return GameActions::Result(GameActions::Status::Disallowed, STR_CANT_REMOVE_THIS, STR_LAND_NOT_OWNED_BY_PARK);
+        visitor.Visit(_loc);
     }
 
-    if (_loc.z < FootpathMinHeight)
+    uint16_t FootpathAdditionRemoveAction::GetActionFlags() const
     {
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_TOO_LOW);
+        return GameAction::GetActionFlags();
     }
 
-    if (_loc.z > FootpathMaxHeight)
+    void FootpathAdditionRemoveAction::Serialise(DataSerialiser& stream)
     {
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_TOO_HIGH);
+        GameAction::Serialise(stream);
+
+        stream << DS_TAG(_loc);
     }
 
-    auto tileElement = MapGetFootpathElement(_loc);
-    if (tileElement == nullptr)
+    Result FootpathAdditionRemoveAction::Query(GameState_t& gameState) const
     {
-        LOG_WARNING("Could not find path element.");
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_NONE);
+        if (!LocationValid(_loc))
+        {
+            return Result(Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_OFF_EDGE_OF_MAP);
+        }
+
+        if (!(gLegacyScene == LegacyScene::scenarioEditor || getGameState().cheats.sandboxMode) && !MapIsLocationOwned(_loc))
+        {
+            return Result(Status::Disallowed, STR_CANT_REMOVE_THIS, STR_LAND_NOT_OWNED_BY_PARK);
+        }
+
+        if (_loc.z < kFootpathMinHeight)
+        {
+            return Result(Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_TOO_LOW);
+        }
+
+        if (_loc.z > kFootpathMaxHeight)
+        {
+            return Result(Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_TOO_HIGH);
+        }
+
+        auto tileElement = MapGetFootpathElement(_loc);
+        if (tileElement == nullptr)
+        {
+            LOG_ERROR("No path element at x = %d, y = %d, z = %d", _loc.x, _loc.y, _loc.z);
+            return Result(Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_ERR_PATH_ELEMENT_NOT_FOUND);
+        }
+
+        auto pathElement = tileElement->AsPath();
+        if (pathElement == nullptr)
+        {
+            LOG_ERROR("No path element at x = %d, y = %d, z = %d", _loc.x, _loc.y, _loc.z);
+            return Result(Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_ERR_PATH_ELEMENT_NOT_FOUND);
+        }
+
+        if (!pathElement->AdditionIsGhost() && (GetFlags() & GAME_COMMAND_FLAG_GHOST))
+        {
+            LOG_WARNING("Tried to remove non ghost during ghost removal.");
+            return Result(Status::Disallowed, STR_CANT_REMOVE_THIS, kStringIdNone);
+        }
+        auto res = Result();
+        res.Position = _loc;
+        res.Cost = 0.00_GBP;
+        return res;
     }
 
-    auto pathElement = tileElement->AsPath();
-    if (pathElement == nullptr)
+    Result FootpathAdditionRemoveAction::Execute(GameState_t& gameState) const
     {
-        LOG_WARNING("Could not find path element.");
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_NONE);
+        auto* pathElement = MapGetFootpathElement(_loc);
+        if (!(GetFlags() & GAME_COMMAND_FLAG_GHOST))
+        {
+            FootpathInterruptPeeps(_loc);
+        }
+
+        if (pathElement == nullptr)
+        {
+            LOG_ERROR("No path element at x = %d, y = %d, z = %d", _loc.x, _loc.y, _loc.z);
+            return Result(Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_ERR_PATH_ELEMENT_NOT_FOUND);
+        }
+
+        pathElement->SetAddition(0);
+        MapInvalidateTileFull(_loc);
+
+        auto res = Result();
+        res.Position = _loc;
+        res.Cost = 0.00_GBP;
+        return res;
     }
-
-    if (!pathElement->AdditionIsGhost() && (GetFlags() & GAME_COMMAND_FLAG_GHOST))
-    {
-        LOG_WARNING("Tried to remove non ghost during ghost removal.");
-        return GameActions::Result(GameActions::Status::Disallowed, STR_CANT_REMOVE_THIS, STR_NONE);
-    }
-    auto res = GameActions::Result();
-    res.Position = _loc;
-    res.Cost = 0.00_GBP;
-    return res;
-}
-
-GameActions::Result FootpathAdditionRemoveAction::Execute() const
-{
-    auto* pathElement = MapGetFootpathElement(_loc);
-    if (!(GetFlags() & GAME_COMMAND_FLAG_GHOST))
-    {
-        FootpathInterruptPeeps(_loc);
-    }
-
-    if (pathElement == nullptr)
-    {
-        LOG_ERROR("Could not find path element.");
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_REMOVE_THIS, STR_NONE);
-    }
-
-    pathElement->SetAddition(0);
-    MapInvalidateTileFull(_loc);
-
-    auto res = GameActions::Result();
-    res.Position = _loc;
-    res.Cost = 0.00_GBP;
-    return res;
-}
+} // namespace OpenRCT2::GameActions

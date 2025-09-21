@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,20 +11,23 @@
 
 #include "GameAction.h"
 
-class StaffFireAction final : public GameActionBase<GameCommand::FireStaffMember>
+namespace OpenRCT2::GameActions
 {
-private:
-    EntityId _spriteId{ EntityId::GetNull() };
+    class StaffFireAction final : public GameActionBase<GameCommand::FireStaffMember>
+    {
+    private:
+        EntityId _spriteId{ EntityId::GetNull() };
 
-public:
-    StaffFireAction() = default;
-    StaffFireAction(EntityId spriteId);
+    public:
+        StaffFireAction() = default;
+        StaffFireAction(EntityId spriteId);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,65 +9,72 @@
 
 #include "RideFreezeRatingAction.h"
 
-RideFreezeRatingAction::RideFreezeRatingAction(RideId rideIndex, RideRatingType type, ride_rating value)
-    : _rideIndex(rideIndex)
-    , _type(type)
-    , _value(value)
-{
-}
+#include "../Diagnostic.h"
+#include "../ui/WindowManager.h"
 
-void RideFreezeRatingAction::AcceptParameters(GameActionParameterVisitor& visitor)
+namespace OpenRCT2::GameActions
 {
-    visitor.Visit("ride", _rideIndex);
-    visitor.Visit("type", _type);
-    visitor.Visit("value", _value);
-}
-
-void RideFreezeRatingAction::Serialise(DataSerialiser& stream)
-{
-    GameAction::Serialise(stream);
-    stream << DS_TAG(_rideIndex) << DS_TAG(_type) << DS_TAG(_value);
-}
-
-GameActions::Result RideFreezeRatingAction::Query() const
-{
-    auto ride = GetRide(_rideIndex);
-    if (ride == nullptr)
+    RideFreezeRatingAction::RideFreezeRatingAction(RideId rideIndex, RideRatingType type, RideRating_t value)
+        : _rideIndex(rideIndex)
+        , _type(type)
+        , _value(value)
     {
-        LOG_WARNING("Invalid game command, ride_id = %u", _rideIndex.ToUnderlying());
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_NONE, STR_NONE);
     }
 
-    if (_value <= 0)
+    void RideFreezeRatingAction::AcceptParameters(GameActionParameterVisitor& visitor)
     {
-        LOG_WARNING("Rating value must be positive", _rideIndex.ToUnderlying());
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_NONE, STR_NONE);
+        visitor.Visit("ride", _rideIndex);
+        visitor.Visit("type", _type);
+        visitor.Visit("value", _value);
     }
 
-    return GameActions::Result();
-}
-
-GameActions::Result RideFreezeRatingAction::Execute() const
-{
-    auto ride = GetRide(_rideIndex);
-
-    switch (_type)
+    void RideFreezeRatingAction::Serialise(DataSerialiser& stream)
     {
-        case RideRatingType::Excitement:
-            ride->excitement = _value;
-            break;
-        case RideRatingType::Intensity:
-            ride->intensity = _value;
-            break;
-        case RideRatingType::Nausea:
-            ride->nausea = _value;
-            break;
+        GameAction::Serialise(stream);
+        stream << DS_TAG(_rideIndex) << DS_TAG(_type) << DS_TAG(_value);
     }
 
-    ride->lifecycle_flags |= RIDE_LIFECYCLE_FIXED_RATINGS;
+    Result RideFreezeRatingAction::Query(GameState_t& gameState) const
+    {
+        auto ride = GetRide(_rideIndex);
+        if (ride == nullptr)
+        {
+            LOG_ERROR("Ride not found for rideIndex %u", _rideIndex.ToUnderlying());
+            return Result(Status::InvalidParameters, STR_ERR_INVALID_PARAMETER, STR_ERR_RIDE_NOT_FOUND);
+        }
 
-    WindowInvalidateByNumber(WindowClass::Ride, _rideIndex.ToUnderlying());
+        if (_value <= 0)
+        {
+            LOG_ERROR("Rating value must be positive: %u", _rideIndex.ToUnderlying());
+            return Result(Status::InvalidParameters, STR_ERR_INVALID_PARAMETER, STR_ERR_VALUE_OUT_OF_RANGE);
+        }
 
-    auto res = GameActions::Result();
-    return res;
-}
+        return Result();
+    }
+
+    Result RideFreezeRatingAction::Execute(GameState_t& gameState) const
+    {
+        auto ride = GetRide(_rideIndex);
+
+        switch (_type)
+        {
+            case RideRatingType::Excitement:
+                ride->ratings.excitement = _value;
+                break;
+            case RideRatingType::Intensity:
+                ride->ratings.intensity = _value;
+                break;
+            case RideRatingType::Nausea:
+                ride->ratings.nausea = _value;
+                break;
+        }
+
+        ride->lifecycleFlags |= RIDE_LIFECYCLE_FIXED_RATINGS;
+
+        auto* windowMgr = Ui::GetWindowManager();
+        windowMgr->InvalidateByNumber(WindowClass::ride, _rideIndex.ToUnderlying());
+
+        auto res = Result();
+        return res;
+    }
+} // namespace OpenRCT2::GameActions

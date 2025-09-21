@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -12,23 +12,26 @@
 #include "CursorRepository.h"
 #include "SDLException.h"
 #include "TextComposition.h"
+#include "UiStringIds.h"
 #include "WindowManager.h"
 #include "drawing/engines/DrawingEngineFactory.hpp"
 #include "input/ShortcutManager.h"
 #include "interface/InGameConsole.h"
 #include "interface/Theme.h"
+#include "interface/Viewport.h"
 #include "scripting/UiExtensions.h"
 #include "title/TitleSequencePlayer.h"
 
 #include <SDL.h>
-#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <memory>
 #include <openrct2-ui/input/InputManager.h>
+#include <openrct2-ui/input/MouseInput.h>
 #include <openrct2-ui/interface/Window.h>
 #include <openrct2/Context.h>
+#include <openrct2/Diagnostic.h>
 #include <openrct2/Input.h>
 #include <openrct2/Version.h>
 #include <openrct2/audio/AudioContext.h>
@@ -38,15 +41,18 @@
 #include <openrct2/drawing/Drawing.h>
 #include <openrct2/drawing/IDrawingEngine.h>
 #include <openrct2/interface/Chat.h>
-#include <openrct2/interface/InteractiveConsole.h>
-#include <openrct2/localisation/StringIds.h>
 #include <openrct2/platform/Platform.h>
+#include <openrct2/scenes/title/TitleSequencePlayer.h>
 #include <openrct2/scripting/ScriptEngine.h>
-#include <openrct2/title/TitleSequencePlayer.h>
 #include <openrct2/ui/UiContext.h>
 #include <openrct2/ui/WindowManager.h>
 #include <openrct2/world/Location.hpp>
 #include <vector>
+
+#ifdef __EMSCRIPTEN__
+    #include <emscripten.h>
+    #include <emscripten/html5.h>
+#endif
 
 using namespace OpenRCT2;
 using namespace OpenRCT2::Drawing;
@@ -54,16 +60,16 @@ using namespace OpenRCT2::Scripting;
 using namespace OpenRCT2::Ui;
 
 #ifdef __MACOSX__
-// macOS uses COMMAND rather than CTRL for many keyboard shortcuts
-#    define KEYBOARD_PRIMARY_MODIFIER KMOD_GUI
+    // macOS uses COMMAND rather than CTRL for many keyboard shortcuts
+    #define KB_PRIMARY_MODIFIER KMOD_GUI
 #else
-#    define KEYBOARD_PRIMARY_MODIFIER KMOD_CTRL
+    #define KB_PRIMARY_MODIFIER KMOD_CTRL
 #endif
 
 class UiContext final : public IUiContext
 {
 private:
-    constexpr static uint32_t TOUCH_DOUBLE_TIMEOUT = 300;
+    constexpr static uint32_t kTouchDoubleTimeout = 300;
 
     const std::unique_ptr<IPlatformUiContext> _platformUiContext;
     const std::unique_ptr<IWindowManager> _windowManager;
@@ -109,7 +115,7 @@ public:
         return _shortcutManager;
     }
 
-    explicit UiContext(const std::shared_ptr<IPlatformEnvironment>& env)
+    explicit UiContext(IPlatformEnvironment& env)
         : _platformUiContext(CreatePlatformUiContext())
         , _windowManager(CreateWindowManager())
         , _shortcutManager(env)
@@ -129,7 +135,7 @@ public:
         SDL_QuitSubSystem(SDL_INIT_VIDEO);
     }
 
-    void Initialise() override
+    void InitialiseScriptExtensions() override
     {
 #ifdef ENABLE_SCRIPTING
         auto& scriptEngine = GetContext()->GetScriptEngine();
@@ -140,13 +146,17 @@ public:
     void Tick() override
     {
         _inGameConsole.Update();
+
+        _windowManager->UpdateMapTooltip();
+
+        WindowDispatchUpdateAll();
     }
 
-    void Draw(DrawPixelInfo& dpi) override
+    void Draw(RenderTarget& rt) override
     {
-        auto bgColour = ThemeGetColour(WindowClass::Chat, 0);
-        ChatDraw(dpi, bgColour);
-        _inGameConsole.Draw(dpi);
+        auto bgColour = ThemeGetColour(WindowClass::chat, 0);
+        ChatDraw(rt, bgColour);
+        _inGameConsole.Draw(rt);
     }
 
     // Window
@@ -170,28 +180,30 @@ public:
         return _scaleQuality;
     }
 
-    void SetFullscreenMode(FULLSCREEN_MODE mode) override
+    void SetFullscreenMode(FullscreenMode mode) override
     {
-        static constexpr int32_t _sdlFullscreenFlags[] = {
+#ifndef __EMSCRIPTEN__
+        static constexpr int32_t kSDLFullscreenFlags[] = {
             0,
             SDL_WINDOW_FULLSCREEN,
             SDL_WINDOW_FULLSCREEN_DESKTOP,
         };
-        uint32_t windowFlags = _sdlFullscreenFlags[static_cast<int32_t>(mode)];
+        uint32_t windowFlags = kSDLFullscreenFlags[EnumValue(mode)];
 
         // HACK Changing window size when in fullscreen usually has no effect
-        if (mode == FULLSCREEN_MODE::FULLSCREEN)
+        if (mode == FullscreenMode::fullscreen)
         {
             SDL_SetWindowFullscreen(_window, 0);
 
             // Set window size
             UpdateFullscreenResolutions();
-            Resolution resolution = GetClosestResolution(gConfigGeneral.FullscreenWidth, gConfigGeneral.FullscreenHeight);
+            Resolution resolution = GetClosestResolution(
+                Config::Get().general.FullscreenWidth, Config::Get().general.FullscreenHeight);
             SDL_SetWindowSize(_window, resolution.Width, resolution.Height);
         }
-        else if (mode == FULLSCREEN_MODE::WINDOWED)
+        else if (mode == FullscreenMode::windowed)
         {
-            SDL_SetWindowSize(_window, gConfigGeneral.WindowWidth, gConfigGeneral.WindowHeight);
+            SDL_SetWindowSize(_window, Config::Get().general.WindowWidth, Config::Get().general.WindowHeight);
         }
 
         if (SDL_SetWindowFullscreen(_window, windowFlags))
@@ -201,6 +213,16 @@ public:
 
             // TODO try another display mode rather than just exiting the game
         }
+#else
+        if (mode == FullscreenMode::fullscreen)
+        {
+            emscripten_request_fullscreen("!canvas", false);
+        }
+        else if (mode == FullscreenMode::windowed)
+        {
+            emscripten_exit_fullscreen();
+        }
+#endif // __EMSCRIPTEN__
     }
 
     const std::vector<Resolution>& GetFullscreenResolutions() override
@@ -291,16 +313,16 @@ public:
         return std::make_shared<DrawingEngineFactory>();
     }
 
-    void DrawWeatherAnimation(IWeatherDrawer* weatherDrawer, DrawPixelInfo& dpi, DrawWeatherFunc drawFunc) override
+    void DrawWeatherAnimation(IWeatherDrawer* weatherDrawer, RenderTarget& rt, DrawWeatherFunc drawFunc) override
     {
-        int32_t left = dpi.x;
-        int32_t right = left + dpi.width;
-        int32_t top = dpi.y;
-        int32_t bottom = top + dpi.height;
+        int32_t left = rt.x;
+        int32_t right = left + rt.width;
+        int32_t top = rt.y;
+        int32_t bottom = top + rt.height;
 
-        for (auto& w : g_window_list)
+        for (auto& w : gWindowList)
         {
-            DrawWeatherWindow(dpi, weatherDrawer, w.get(), left, right, top, bottom, drawFunc);
+            DrawWeatherWindow(rt, weatherDrawer, w.get(), left, right, top, bottom, drawFunc);
         }
     }
 
@@ -352,16 +374,16 @@ public:
                         {
                             // Update default display index
                             int32_t displayIndex = SDL_GetWindowDisplayIndex(_window);
-                            if (displayIndex != gConfigGeneral.DefaultDisplay)
+                            if (displayIndex != Config::Get().general.DefaultDisplay)
                             {
-                                gConfigGeneral.DefaultDisplay = displayIndex;
-                                ConfigSaveDefault();
+                                Config::Get().general.DefaultDisplay = displayIndex;
+                                Config::Save();
                             }
                             break;
                         }
                     }
 
-                    if (gConfigSound.audio_focus)
+                    if (Config::Get().sound.audio_focus)
                     {
                         if (e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
                         {
@@ -374,8 +396,8 @@ public:
                     }
                     break;
                 case SDL_MOUSEMOTION:
-                    _cursorState.position = { static_cast<int32_t>(e.motion.x / gConfigGeneral.WindowScale),
-                                              static_cast<int32_t>(e.motion.y / gConfigGeneral.WindowScale) };
+                    _cursorState.position = { static_cast<int32_t>(e.motion.x / Config::Get().general.WindowScale),
+                                              static_cast<int32_t>(e.motion.y / Config::Get().general.WindowScale) };
                     break;
                 case SDL_MOUSEWHEEL:
                     if (_inGameConsole.IsOpen())
@@ -391,8 +413,8 @@ public:
                     {
                         break;
                     }
-                    ScreenCoordsXY mousePos = { static_cast<int32_t>(e.button.x / gConfigGeneral.WindowScale),
-                                                static_cast<int32_t>(e.button.y / gConfigGeneral.WindowScale) };
+                    ScreenCoordsXY mousePos = { static_cast<int32_t>(e.button.x / Config::Get().general.WindowScale),
+                                                static_cast<int32_t>(e.button.y / Config::Get().general.WindowScale) };
                     switch (e.button.button)
                     {
                         case SDL_BUTTON_LEFT:
@@ -427,8 +449,8 @@ public:
                     {
                         break;
                     }
-                    ScreenCoordsXY mousePos = { static_cast<int32_t>(e.button.x / gConfigGeneral.WindowScale),
-                                                static_cast<int32_t>(e.button.y / gConfigGeneral.WindowScale) };
+                    ScreenCoordsXY mousePos = { static_cast<int32_t>(e.button.x / Config::Get().general.WindowScale),
+                                                static_cast<int32_t>(e.button.y / Config::Get().general.WindowScale) };
                     switch (e.button.button)
                     {
                         case SDL_BUTTON_LEFT:
@@ -470,7 +492,7 @@ public:
 
                     _cursorState.touchIsDouble
                         = (!_cursorState.touchIsDouble
-                           && e.tfinger.timestamp - _cursorState.touchDownTimestamp < TOUCH_DOUBLE_TIMEOUT);
+                           && e.tfinger.timestamp - _cursorState.touchDownTimestamp < kTouchDoubleTimeout);
 
                     if (_cursorState.touchIsDouble)
                     {
@@ -549,7 +571,7 @@ public:
                         if (abs(gesturePixels) > tolerance)
                         {
                             _gestureRadius = 0;
-                            MainWindowZoom(gesturePixels > 0, true);
+                            Windows::MainWindowZoom(gesturePixels > 0, true);
                         }
                     }
                     break;
@@ -582,7 +604,7 @@ public:
     {
         char scaleQualityBuffer[4];
         _scaleQuality = ScaleQuality::SmoothNearestNeighbour;
-        if (gConfigGeneral.WindowScale == std::floor(gConfigGeneral.WindowScale))
+        if (Config::Get().general.WindowScale == std::floor(Config::Get().general.WindowScale))
         {
             _scaleQuality = ScaleQuality::NearestNeighbour;
         }
@@ -602,10 +624,10 @@ public:
 
     void CreateWindow() override
     {
-        SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, gConfigGeneral.MinimizeFullscreenFocusLoss ? "1" : "0");
+        SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, Config::Get().general.MinimizeFullscreenFocusLoss ? "1" : "0");
 
         // Set window position to default display
-        int32_t defaultDisplay = std::clamp(gConfigGeneral.DefaultDisplay, 0, 0xFFFF);
+        int32_t defaultDisplay = std::clamp(Config::Get().general.DefaultDisplay, 0, 0xFFFF);
         auto windowPos = ScreenCoordsXY{ static_cast<int32_t>(SDL_WINDOWPOS_UNDEFINED_DISPLAY(defaultDisplay)),
                                          static_cast<int32_t>(SDL_WINDOWPOS_UNDEFINED_DISPLAY(defaultDisplay)) };
 
@@ -707,16 +729,32 @@ public:
 
     bool SetClipboardText(const utf8* target) override
     {
+#ifndef __EMSCRIPTEN__
         return (SDL_SetClipboardText(target) == 0);
+#else
+        return (
+            MAIN_THREAD_EM_ASM_INT(
+                {
+                    try
+                    {
+                        navigator.clipboard.writeText(UTF8ToString($0));
+                        return 0;
+                    }
+                    catch (e)
+                    {
+                        return -1;
+                    };
+                },
+                target)
+            == 0);
+#endif
     }
 
     ITitleSequencePlayer* GetTitleSequencePlayer() override
     {
         if (_titleSequencePlayer == nullptr)
         {
-            auto context = GetContext();
-            auto gameState = context->GetGameState();
-            _titleSequencePlayer = OpenRCT2::Title::CreateTitleSequencePlayer(*gameState);
+            _titleSequencePlayer = OpenRCT2::Title::CreateTitleSequencePlayer();
         }
         return _titleSequencePlayer.get();
     }
@@ -729,11 +767,39 @@ private:
         LOG_VERBOSE("SDL2 version: %d.%d.%d", version.major, version.minor, version.patch);
     }
 
+    void InferDisplayDPI()
+    {
+        auto& config = Config::Get().general;
+        if (!config.InferDisplayDPI)
+            return;
+
+        int wWidth, wHeight;
+        SDL_GetWindowSize(_window, &wWidth, &wHeight);
+
+        auto renderer = SDL_GetRenderer(_window);
+        int rWidth, rHeight;
+        if (SDL_GetRendererOutputSize(renderer, &rWidth, &rHeight) == 0)
+            config.WindowScale = rWidth / wWidth;
+
+        config.InferDisplayDPI = false;
+        Config::Save();
+    }
+
     void CreateWindow(const ScreenCoordsXY& windowPos)
     {
+#ifdef __EMSCRIPTEN__
+        MAIN_THREAD_EM_ASM({
+            Module.canvas.width = window.innerWidth;
+            Module.canvas.height = window.innerHeight;
+        });
+        int32_t width = 0;
+        int32_t height = 0;
+        emscripten_get_canvas_element_size("!canvas", &width, &height);
+#else
         // Get saved window size
-        int32_t width = gConfigGeneral.WindowWidth;
-        int32_t height = gConfigGeneral.WindowHeight;
+        int32_t width = Config::Get().general.WindowWidth;
+        int32_t height = Config::Get().general.WindowHeight;
+#endif
         if (width <= 0)
             width = 640;
         if (height <= 0)
@@ -741,7 +807,7 @@ private:
 
         // Create window in window first rather than fullscreen so we have the display the window is on first
         uint32_t flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
-        if (gConfigGeneral.DrawingEngine == DrawingEngine::OpenGL)
+        if (Config::Get().general.DrawingEngine == DrawingEngine::OpenGL)
         {
             flags |= SDL_WINDOW_OPENGL;
         }
@@ -755,29 +821,25 @@ private:
         ApplyScreenSaverLockSetting();
 
         SDL_SetWindowMinimumSize(_window, 720, 480);
-        SetCursorTrap(gConfigGeneral.TrapCursor);
+        SetCursorTrap(Config::Get().general.TrapCursor);
         _platformUiContext->SetWindowIcon(_window);
 
         // Initialise the surface, palette and draw buffer
         DrawingEngineInit();
+        InferDisplayDPI();
         OnResize(width, height);
 
         UpdateFullscreenResolutions();
 
-        // Fix #4022: Force Mac to windowed to avoid cursor offset on launch issue
-#ifdef __MACOSX__
-        gConfigGeneral.FullscreenMode = static_cast<int32_t>(OpenRCT2::Ui::FULLSCREEN_MODE::WINDOWED);
-#else
-        SetFullscreenMode(static_cast<FULLSCREEN_MODE>(gConfigGeneral.FullscreenMode));
-#endif
+        SetFullscreenMode(static_cast<FullscreenMode>(Config::Get().general.FullscreenMode));
         TriggerResize();
     }
 
     void OnResize(int32_t width, int32_t height)
     {
         // Scale the native window size to the game's canvas size
-        _width = static_cast<int32_t>(width / gConfigGeneral.WindowScale);
-        _height = static_cast<int32_t>(height / gConfigGeneral.WindowScale);
+        _width = static_cast<int32_t>(width / Config::Get().general.WindowScale);
+        _height = static_cast<int32_t>(height / Config::Get().general.WindowScale);
 
         DrawingEngineResize();
 
@@ -785,7 +847,7 @@ private:
         if ((flags & SDL_WINDOW_MINIMIZED) == 0)
         {
             WindowResizeGui(_width, _height);
-            WindowRelocateWindows(_width, _height);
+            Windows::WindowRelocateWindows(_width, _height);
         }
 
         GfxInvalidateScreen();
@@ -799,11 +861,11 @@ private:
 
         if (!(flags & nonWindowFlags))
         {
-            if (width != gConfigGeneral.WindowWidth || height != gConfigGeneral.WindowHeight)
+            if (width != Config::Get().general.WindowWidth || height != Config::Get().general.WindowHeight)
             {
-                gConfigGeneral.WindowWidth = width;
-                gConfigGeneral.WindowHeight = height;
-                ConfigSaveDefault();
+                Config::Get().general.WindowWidth = width;
+                Config::Get().general.WindowHeight = height;
+                Config::Save();
             }
         }
     }
@@ -848,10 +910,11 @@ private:
         resolutions.erase(last, resolutions.end());
 
         // Update config fullscreen resolution if not set
-        if (!resolutions.empty() && (gConfigGeneral.FullscreenWidth == -1 || gConfigGeneral.FullscreenHeight == -1))
+        if (!resolutions.empty()
+            && (Config::Get().general.FullscreenWidth == -1 || Config::Get().general.FullscreenHeight == -1))
         {
-            gConfigGeneral.FullscreenWidth = resolutions.back().Width;
-            gConfigGeneral.FullscreenHeight = resolutions.back().Height;
+            Config::Get().general.FullscreenWidth = resolutions.back().Width;
+            Config::Get().general.FullscreenHeight = resolutions.back().Height;
         }
 
         _fsResolutions = resolutions;
@@ -888,14 +951,14 @@ private:
     }
 
     static void DrawWeatherWindow(
-        DrawPixelInfo& dpi, IWeatherDrawer* weatherDrawer, WindowBase* original_w, int16_t left, int16_t right, int16_t top,
+        RenderTarget& rt, IWeatherDrawer* weatherDrawer, WindowBase* original_w, int16_t left, int16_t right, int16_t top,
         int16_t bottom, DrawWeatherFunc drawFunc)
     {
         WindowBase* w{};
         auto itStart = WindowGetIterator(original_w);
         for (auto it = std::next(itStart);; it++)
         {
-            if (it == g_window_list.end())
+            if (it == gWindowList.end())
             {
                 // Loop ended, draw weather for original_w
                 auto vp = original_w->viewport;
@@ -909,19 +972,25 @@ private:
                     {
                         auto width = right - left;
                         auto height = bottom - top;
-                        drawFunc(dpi, weatherDrawer, left, top, width, height);
+                        drawFunc(rt, weatherDrawer, left, top, width, height);
                     }
                 }
                 return;
             }
 
             w = it->get();
+
+            if (w->flags.has(WindowFlag::dead))
+            {
+                continue;
+            }
+
             if (right <= w->windowPos.x || bottom <= w->windowPos.y)
             {
                 continue;
             }
 
-            if (RCT_WINDOW_RIGHT(w) <= left || RCT_WINDOW_BOTTOM(w) <= top)
+            if (w->right() <= left || w->bottom() <= top)
             {
                 continue;
             }
@@ -931,39 +1000,39 @@ private:
                 break;
             }
 
-            DrawWeatherWindow(dpi, weatherDrawer, original_w, left, w->windowPos.x, top, bottom, drawFunc);
+            DrawWeatherWindow(rt, weatherDrawer, original_w, left, w->windowPos.x, top, bottom, drawFunc);
 
             left = w->windowPos.x;
-            DrawWeatherWindow(dpi, weatherDrawer, original_w, left, right, top, bottom, drawFunc);
+            DrawWeatherWindow(rt, weatherDrawer, original_w, left, right, top, bottom, drawFunc);
             return;
         }
 
-        int16_t w_right = RCT_WINDOW_RIGHT(w);
-        if (right > w_right)
+        auto wRight = w->right();
+        if (right > wRight)
         {
-            DrawWeatherWindow(dpi, weatherDrawer, original_w, left, w_right, top, bottom, drawFunc);
+            DrawWeatherWindow(rt, weatherDrawer, original_w, left, wRight, top, bottom, drawFunc);
 
-            left = w_right;
-            DrawWeatherWindow(dpi, weatherDrawer, original_w, left, right, top, bottom, drawFunc);
+            left = wRight;
+            DrawWeatherWindow(rt, weatherDrawer, original_w, left, right, top, bottom, drawFunc);
             return;
         }
 
         if (top < w->windowPos.y)
         {
-            DrawWeatherWindow(dpi, weatherDrawer, original_w, left, right, top, w->windowPos.y, drawFunc);
+            DrawWeatherWindow(rt, weatherDrawer, original_w, left, right, top, w->windowPos.y, drawFunc);
 
             top = w->windowPos.y;
-            DrawWeatherWindow(dpi, weatherDrawer, original_w, left, right, top, bottom, drawFunc);
+            DrawWeatherWindow(rt, weatherDrawer, original_w, left, right, top, bottom, drawFunc);
             return;
         }
 
-        int16_t w_bottom = RCT_WINDOW_BOTTOM(w);
-        if (bottom > w_bottom)
+        auto wBottom = w->bottom();
+        if (bottom > wBottom)
         {
-            DrawWeatherWindow(dpi, weatherDrawer, original_w, left, right, top, w_bottom, drawFunc);
+            DrawWeatherWindow(rt, weatherDrawer, original_w, left, right, top, wBottom, drawFunc);
 
-            top = w_bottom;
-            DrawWeatherWindow(dpi, weatherDrawer, original_w, left, right, top, bottom, drawFunc);
+            top = wBottom;
+            DrawWeatherWindow(rt, weatherDrawer, original_w, left, right, top, bottom, drawFunc);
             return;
         }
     }
@@ -996,8 +1065,8 @@ private:
 
     void SetAudioVolume(float value)
     {
-        auto audioContext = GetContext()->GetAudioContext();
-        auto mixer = audioContext->GetMixer();
+        auto& audioContext = GetContext()->GetAudioContext();
+        auto* mixer = audioContext.GetMixer();
         if (mixer != nullptr)
         {
             mixer->SetVolume(value);
@@ -1005,25 +1074,25 @@ private:
     }
 };
 
-std::unique_ptr<IUiContext> OpenRCT2::Ui::CreateUiContext(const std::shared_ptr<IPlatformEnvironment>& env)
+std::unique_ptr<IUiContext> OpenRCT2::Ui::CreateUiContext(IPlatformEnvironment& env)
 {
     return std::make_unique<UiContext>(env);
 }
 
 InGameConsole& OpenRCT2::Ui::GetInGameConsole()
 {
-    auto uiContext = std::static_pointer_cast<UiContext>(GetContext()->GetUiContext());
-    return uiContext->GetInGameConsole();
+    auto& uiContext = static_cast<UiContext&>(GetContext()->GetUiContext());
+    return uiContext.GetInGameConsole();
 }
 
 InputManager& OpenRCT2::Ui::GetInputManager()
 {
-    auto uiContext = std::static_pointer_cast<UiContext>(GetContext()->GetUiContext());
-    return uiContext->GetInputManager();
+    auto& uiContext = static_cast<UiContext&>(GetContext()->GetUiContext());
+    return uiContext.GetInputManager();
 }
 
 ShortcutManager& OpenRCT2::Ui::GetShortcutManager()
 {
-    auto uiContext = std::static_pointer_cast<UiContext>(GetContext()->GetUiContext());
-    return uiContext->GetShortcutManager();
+    auto& uiContext = static_cast<UiContext&>(GetContext()->GetUiContext());
+    return uiContext.GetShortcutManager();
 }

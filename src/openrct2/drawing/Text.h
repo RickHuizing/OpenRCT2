@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,13 +9,17 @@
 
 #pragma once
 
-#include "../common.h"
 #include "../interface/Colour.h"
+#include "../localisation/StringIdType.h"
 #include "Font.h"
 
 struct ScreenCoordsXY;
-struct DrawPixelInfo;
-class Formatter;
+struct RenderTarget;
+
+namespace OpenRCT2
+{
+    class Formatter;
+}
 
 enum class TextAlignment
 {
@@ -39,15 +43,19 @@ enum class TextDarkness
 
 struct TextPaint
 {
-    colour_t Colour = COLOUR_BLACK;
+    ColourWithFlags Colour = { COLOUR_BLACK };
     ::FontStyle FontStyle = FontStyle::Medium;
     TextUnderline UnderlineText = TextUnderline::Off;
     TextAlignment Alignment = TextAlignment::LEFT;
     TextDarkness Darkness = TextDarkness::Regular;
 
     TextPaint() = default;
-    TextPaint(colour_t colour)
+    TextPaint(ColourWithFlags colour)
         : Colour(colour)
+    {
+    }
+    TextPaint(colour_t colour)
+        : Colour(ColourWithFlags{ colour })
     {
     }
     TextPaint(::FontStyle fontStyle)
@@ -63,18 +71,33 @@ struct TextPaint
     {
     }
 
-    TextPaint(colour_t colour, ::FontStyle fontStyle)
+    TextPaint(ColourWithFlags colour, ::FontStyle fontStyle)
         : Colour(colour)
         , FontStyle(fontStyle)
     {
     }
-    TextPaint(colour_t colour, TextUnderline underlineText)
+    TextPaint(colour_t colour, ::FontStyle fontStyle)
+        : Colour(ColourWithFlags{ colour })
+        , FontStyle(fontStyle)
+    {
+    }
+    TextPaint(ColourWithFlags colour, TextUnderline underlineText)
         : Colour(colour)
         , UnderlineText(underlineText)
     {
     }
-    TextPaint(colour_t colour, TextAlignment alignment)
+    TextPaint(colour_t colour, TextUnderline underlineText)
+        : Colour(ColourWithFlags{ colour })
+        , UnderlineText(underlineText)
+    {
+    }
+    TextPaint(ColourWithFlags colour, TextAlignment alignment)
         : Colour(colour)
+        , Alignment(alignment)
+    {
+    }
+    TextPaint(colour_t colour, TextAlignment alignment)
+        : Colour(ColourWithFlags{ colour })
         , Alignment(alignment)
     {
     }
@@ -95,26 +118,50 @@ struct TextPaint
     {
     }
 
-    TextPaint(colour_t colour, ::FontStyle fontStyle, TextUnderline underlineText)
+    TextPaint(ColourWithFlags colour, ::FontStyle fontStyle, TextUnderline underlineText)
         : Colour(colour)
         , FontStyle(fontStyle)
         , UnderlineText(underlineText)
     {
     }
-    TextPaint(colour_t colour, ::FontStyle fontStyle, TextAlignment alignment)
+    TextPaint(colour_t colour, ::FontStyle fontStyle, TextUnderline underlineText)
+        : Colour(ColourWithFlags{ colour })
+        , FontStyle(fontStyle)
+        , UnderlineText(underlineText)
+    {
+    }
+    TextPaint(ColourWithFlags colour, ::FontStyle fontStyle, TextAlignment alignment)
         : Colour(colour)
         , FontStyle(fontStyle)
         , Alignment(alignment)
     {
     }
-    TextPaint(colour_t colour, ::FontStyle fontStyle, TextDarkness darkness)
+    TextPaint(colour_t colour, ::FontStyle fontStyle, TextAlignment alignment)
+        : Colour(ColourWithFlags{ colour })
+        , FontStyle(fontStyle)
+        , Alignment(alignment)
+    {
+    }
+    TextPaint(ColourWithFlags colour, ::FontStyle fontStyle, TextDarkness darkness)
         : Colour(colour)
         , FontStyle(fontStyle)
         , Darkness(darkness)
     {
     }
-    TextPaint(colour_t colour, TextUnderline underlineText, TextAlignment alignment)
+    TextPaint(colour_t colour, ::FontStyle fontStyle, TextDarkness darkness)
+        : Colour(ColourWithFlags{ colour })
+        , FontStyle(fontStyle)
+        , Darkness(darkness)
+    {
+    }
+    TextPaint(ColourWithFlags colour, TextUnderline underlineText, TextAlignment alignment)
         : Colour(colour)
+        , UnderlineText(underlineText)
+        , Alignment(alignment)
+    {
+    }
+    TextPaint(colour_t colour, TextUnderline underlineText, TextAlignment alignment)
+        : Colour(ColourWithFlags{ colour })
         , UnderlineText(underlineText)
         , Alignment(alignment)
     {
@@ -126,15 +173,29 @@ struct TextPaint
     {
     }
 
-    TextPaint(colour_t colour, ::FontStyle fontStyle, TextUnderline underlineText, TextAlignment alignment)
+    TextPaint(ColourWithFlags colour, ::FontStyle fontStyle, TextUnderline underlineText, TextAlignment alignment)
         : Colour(colour)
         , FontStyle(fontStyle)
         , UnderlineText(underlineText)
         , Alignment(alignment)
     {
     }
-    TextPaint(colour_t colour, ::FontStyle fontStyle, TextAlignment alignment, TextDarkness darkness)
+    TextPaint(colour_t colour, ::FontStyle fontStyle, TextUnderline underlineText, TextAlignment alignment)
+        : Colour(ColourWithFlags{ colour })
+        , FontStyle(fontStyle)
+        , UnderlineText(underlineText)
+        , Alignment(alignment)
+    {
+    }
+    TextPaint(ColourWithFlags colour, ::FontStyle fontStyle, TextAlignment alignment, TextDarkness darkness)
         : Colour(colour)
+        , FontStyle(fontStyle)
+        , Alignment(alignment)
+        , Darkness(darkness)
+    {
+    }
+    TextPaint(colour_t colour, ::FontStyle fontStyle, TextAlignment alignment, TextDarkness darkness)
+        : Colour(ColourWithFlags{ colour })
         , FontStyle(fontStyle)
         , Alignment(alignment)
         , Darkness(darkness)
@@ -142,17 +203,17 @@ struct TextPaint
     }
 };
 
-void DrawTextBasic(DrawPixelInfo& dpi, const ScreenCoordsXY& coords, StringId format);
-void DrawTextEllipsised(DrawPixelInfo& dpi, const ScreenCoordsXY& coords, int32_t width, StringId format);
-int32_t DrawTextWrapped(DrawPixelInfo& dpi, const ScreenCoordsXY& coords, int32_t width, StringId format);
+void DrawTextBasic(RenderTarget& rt, const ScreenCoordsXY& coords, StringId format);
+void DrawTextEllipsised(RenderTarget& rt, const ScreenCoordsXY& coords, int32_t width, StringId format);
+int32_t DrawTextWrapped(RenderTarget& rt, const ScreenCoordsXY& coords, int32_t width, StringId format);
 
 void DrawText(
-    DrawPixelInfo& dpi, const ScreenCoordsXY& coords, const TextPaint& paint, const_utf8string text, bool noFormatting = false);
+    RenderTarget& rt, const ScreenCoordsXY& coords, const TextPaint& paint, const_utf8string text, bool noFormatting = false);
 void DrawTextBasic(
-    DrawPixelInfo& dpi, const ScreenCoordsXY& coords, StringId format, const Formatter& ft, TextPaint textPaint = {});
+    RenderTarget& rt, const ScreenCoordsXY& coords, StringId format, const OpenRCT2::Formatter& ft, TextPaint textPaint = {});
 void DrawTextEllipsised(
-    DrawPixelInfo& dpi, const ScreenCoordsXY& coords, int32_t width, StringId format, const Formatter& ft,
+    RenderTarget& rt, const ScreenCoordsXY& coords, int32_t width, StringId format, const OpenRCT2::Formatter& ft,
     TextPaint textPaint = {});
 int32_t DrawTextWrapped(
-    DrawPixelInfo& dpi, const ScreenCoordsXY& coords, int32_t width, StringId format, const Formatter& ft,
+    RenderTarget& rt, const ScreenCoordsXY& coords, int32_t width, StringId format, const OpenRCT2::Formatter& ft,
     TextPaint textPaint = {});

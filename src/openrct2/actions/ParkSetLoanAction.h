@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,20 +11,23 @@
 
 #include "GameAction.h"
 
-class ParkSetLoanAction final : public GameActionBase<GameCommand::SetCurrentLoan>
+namespace OpenRCT2::GameActions
 {
-private:
-    money64 _value{ MONEY64_UNDEFINED };
+    class ParkSetLoanAction final : public GameActionBase<GameCommand::SetCurrentLoan>
+    {
+    private:
+        money64 _value{ kMoney64Undefined };
 
-public:
-    ParkSetLoanAction() = default;
-    ParkSetLoanAction(money64 value);
+    public:
+        ParkSetLoanAction() = default;
+        ParkSetLoanAction(money64 value);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

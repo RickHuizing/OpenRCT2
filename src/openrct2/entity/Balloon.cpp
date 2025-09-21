@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,16 +10,21 @@
 #include "Balloon.h"
 
 #include "../Game.h"
-#include "../audio/audio.h"
+#include "../GameState.h"
+#include "../audio/Audio.h"
 #include "../core/DataSerialiser.h"
-#include "../network/network.h"
+#include "../network/Network.h"
 #include "../paint/Paint.h"
 #include "../profiling/Profiling.h"
 #include "../scenario/Scenario.h"
-#include "../util/Util.h"
+#include "../world/Map.h"
+#include "../world/tile_element/TrackElement.h"
 #include "EntityRegistry.h"
 
-template<> bool EntityBase::Is<Balloon>() const
+using namespace OpenRCT2;
+
+template<>
+bool EntityBase::Is<Balloon>() const
 {
     return Type == EntityType::Balloon;
 }
@@ -32,7 +37,7 @@ void Balloon::Update()
         frame++;
         if (frame >= 5)
         {
-            EntityRemove(this);
+            getGameState().entities.EntityRemove(this);
         }
     }
     else
@@ -96,7 +101,7 @@ void Balloon::Pop(bool playSound)
 
 void Balloon::Create(const CoordsXYZ& balloonPos, int32_t colour, bool isPopped)
 {
-    auto* balloon = CreateEntity<Balloon>();
+    auto* balloon = getGameState().entities.CreateEntity<Balloon>();
     if (balloon == nullptr)
         return;
 
@@ -141,7 +146,7 @@ bool Balloon::Collides() const
     do
     {
         // the balloon has height so we add some padding to prevent it clipping through things.
-        int32_t balloon_top = z + COORDS_Z_STEP * 2;
+        int32_t balloon_top = z + kCoordsZStep * 2;
         if (balloon_top == tileElement->GetBaseZ())
         {
             return true;

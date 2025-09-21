@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,54 +10,65 @@
 #include "ParkSetEntranceFeeAction.h"
 
 #include "../Cheats.h"
+#include "../Diagnostic.h"
 #include "../GameState.h"
 #include "../core/MemoryStream.h"
-#include "../interface/Window.h"
 #include "../localisation/StringIds.h"
+#include "../ui/WindowManager.h"
 #include "../world/Park.h"
 
-using namespace OpenRCT2;
-
-ParkSetEntranceFeeAction::ParkSetEntranceFeeAction(money64 fee)
-    : _fee(fee)
+namespace OpenRCT2::GameActions
 {
-}
-
-void ParkSetEntranceFeeAction::AcceptParameters(GameActionParameterVisitor& visitor)
-{
-    visitor.Visit("value", _fee);
-}
-
-uint16_t ParkSetEntranceFeeAction::GetActionFlags() const
-{
-    return GameAction::GetActionFlags() | GameActions::Flags::AllowWhilePaused;
-}
-
-void ParkSetEntranceFeeAction::Serialise(DataSerialiser& stream)
-{
-    GameAction::Serialise(stream);
-
-    stream << DS_TAG(_fee);
-}
-
-GameActions::Result ParkSetEntranceFeeAction::Query() const
-{
-    bool noMoney = (GetGameState().ParkFlags & PARK_FLAGS_NO_MONEY) != 0;
-    bool forceFreeEntry = !ParkEntranceFeeUnlocked();
-    if (noMoney || forceFreeEntry)
+    ParkSetEntranceFeeAction::ParkSetEntranceFeeAction(money64 fee)
+        : _fee(fee)
     {
-        return GameActions::Result(GameActions::Status::Disallowed, STR_NONE, STR_NONE);
     }
-    if (_fee < 0.00_GBP || _fee > MAX_ENTRANCE_FEE)
-    {
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_NONE, STR_NONE);
-    }
-    return GameActions::Result();
-}
 
-GameActions::Result ParkSetEntranceFeeAction::Execute() const
-{
-    GetGameState().ParkEntranceFee = _fee;
-    WindowInvalidateByClass(WindowClass::ParkInformation);
-    return GameActions::Result();
-}
+    void ParkSetEntranceFeeAction::AcceptParameters(GameActionParameterVisitor& visitor)
+    {
+        visitor.Visit("value", _fee);
+    }
+
+    uint16_t ParkSetEntranceFeeAction::GetActionFlags() const
+    {
+        return GameAction::GetActionFlags() | Flags::AllowWhilePaused;
+    }
+
+    void ParkSetEntranceFeeAction::Serialise(DataSerialiser& stream)
+    {
+        GameAction::Serialise(stream);
+
+        stream << DS_TAG(_fee);
+    }
+
+    Result ParkSetEntranceFeeAction::Query(GameState_t& gameState) const
+    {
+        if ((getGameState().park.flags & PARK_FLAGS_NO_MONEY) != 0)
+        {
+            LOG_ERROR("Can't set park entrance fee because the park has no money");
+            return Result(Status::Disallowed, STR_ERR_CANT_CHANGE_PARK_ENTRANCE_FEE, kStringIdNone);
+        }
+        else if (!Park::EntranceFeeUnlocked())
+        {
+            LOG_ERROR("Park entrance fee is locked");
+            return Result(Status::Disallowed, STR_ERR_CANT_CHANGE_PARK_ENTRANCE_FEE, kStringIdNone);
+        }
+        else if (_fee < 0.00_GBP || _fee > kMaxEntranceFee)
+        {
+            LOG_ERROR("Invalid park entrance fee %d", _fee);
+            return Result(Status::InvalidParameters, STR_ERR_INVALID_PARAMETER, STR_ERR_VALUE_OUT_OF_RANGE);
+        }
+
+        return Result();
+    }
+
+    Result ParkSetEntranceFeeAction::Execute(GameState_t& gameState) const
+    {
+        getGameState().park.entranceFee = _fee;
+
+        auto* windowMgr = Ui::GetWindowManager();
+        windowMgr->InvalidateByClass(WindowClass::parkInformation);
+
+        return Result();
+    }
+} // namespace OpenRCT2::GameActions

@@ -1,13 +1,16 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
  *
  * OpenRCT2 is licensed under the GNU General Public License version 3.
  *****************************************************************************/
+
 #include "MoneyEffect.h"
 
+#include "../Diagnostic.h"
+#include "../GameState.h"
 #include "../OpenRCT2.h"
 #include "../config/Config.h"
 #include "../core/DataSerialiser.h"
@@ -15,21 +18,23 @@
 #include "../interface/Viewport.h"
 #include "../interface/Window.h"
 #include "../localisation/Formatting.h"
-#include "../localisation/Localisation.h"
-#include "../network/network.h"
+#include "../network/Network.h"
 #include "../paint/Paint.h"
 #include "../profiling/Profiling.h"
 #include "../world/Map.h"
 #include "EntityRegistry.h"
 
-static constexpr CoordsXY _moneyEffectMoveOffset[] = {
+using namespace OpenRCT2;
+
+static constexpr CoordsXY kMoneyEffectMoveOffset[] = {
     { 1, -1 },
     { 1, 1 },
     { -1, 1 },
     { -1, -1 },
 };
 
-template<> bool EntityBase::Is<MoneyEffect>() const
+template<>
+bool EntityBase::Is<MoneyEffect>() const
 {
     return Type == EntityType::MoneyEffect;
 }
@@ -43,29 +48,13 @@ void MoneyEffect::CreateAt(money64 value, const CoordsXYZ& effectPos, bool guest
     if (value == 0.00_GBP)
         return;
 
-    MoneyEffect* moneyEffect = CreateEntity<MoneyEffect>();
+    MoneyEffect* moneyEffect = getGameState().entities.CreateEntity<MoneyEffect>();
     if (moneyEffect == nullptr)
         return;
 
-    moneyEffect->Value = value;
     moneyEffect->GuestPurchase = (guestPurchase ? 1 : 0);
-    moneyEffect->SpriteData.Width = 64;
-    moneyEffect->SpriteData.HeightMin = 20;
-    moneyEffect->SpriteData.HeightMax = 30;
     moneyEffect->MoveTo(effectPos);
-    moneyEffect->NumMovements = 0;
-    moneyEffect->MoveDelay = 0;
-
-    int16_t offsetX = 0;
-    if (!gOpenRCT2NoGraphics)
-    {
-        auto [stringId, newValue] = moneyEffect->GetStringId();
-        char buffer[128];
-        OpenRCT2::FormatStringLegacy(buffer, 128, stringId, &newValue);
-        offsetX = -(GfxGetStringWidth(buffer, FontStyle::Medium) / 2);
-    }
-    moneyEffect->OffsetX = offsetX;
-    moneyEffect->Wiggle = 0;
+    moneyEffect->SetValue(value);
 }
 
 /**
@@ -79,7 +68,7 @@ void MoneyEffect::Create(money64 value, const CoordsXYZ& loc)
     {
         // If game actions return no valid location of the action we can not use the screen
         // coordinates as every client will have different ones.
-        if (NetworkGetMode() != NETWORK_MODE_NONE)
+        if (Network::GetMode() != Network::Mode::none)
         {
             LOG_WARNING("Attempted to create money effect without a valid location in multiplayer");
             return;
@@ -99,6 +88,30 @@ void MoneyEffect::Create(money64 value, const CoordsXYZ& loc)
     }
     offsetLoc.z += 10;
     CreateAt(-value, offsetLoc, false);
+}
+
+/**
+ * Set the value of the money effect
+ */
+void MoneyEffect::SetValue(money64 value)
+{
+    Value = value;
+    SpriteData.Width = 64;
+    SpriteData.HeightMin = 20;
+    SpriteData.HeightMax = 30;
+    MoveDelay = 0;
+    NumMovements = 0;
+
+    int16_t offsetX = 0;
+    if (!gOpenRCT2NoGraphics)
+    {
+        auto [stringId, newValue] = GetStringId();
+        char buffer[128];
+        OpenRCT2::FormatStringLegacy(buffer, 128, stringId, &newValue);
+        offsetX = -(GfxGetStringWidth(buffer, FontStyle::Medium) / 2);
+    }
+    OffsetX = offsetX;
+    Wiggle = 0;
 }
 
 /**
@@ -128,8 +141,8 @@ void MoneyEffect::Update()
     {
         newZ += 1;
     }
-    newY += _moneyEffectMoveOffset[GetCurrentRotation()].y;
-    newX += _moneyEffectMoveOffset[GetCurrentRotation()].x;
+    newY += kMoneyEffectMoveOffset[GetCurrentRotation()].y;
+    newX += kMoneyEffectMoveOffset[GetCurrentRotation()].x;
 
     MoveTo({ newX, newY, newZ });
 
@@ -139,7 +152,7 @@ void MoneyEffect::Update()
         return;
     }
 
-    EntityRemove(this);
+    getGameState().entities.EntityRemove(this);
 }
 
 std::pair<StringId, money64> MoneyEffect::GetStringId() const
@@ -173,20 +186,20 @@ void MoneyEffect::Paint(PaintSession& session, int32_t imageDirection) const
 {
     PROFILED_FUNCTION();
 
-    if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+    if (gLegacyScene == LegacyScene::titleSequence)
     {
         // Don't render any money in the title screen.
         return;
     }
 
-    if (GuestPurchase && !gConfigGeneral.ShowGuestPurchases)
+    if (GuestPurchase && !Config::Get().general.ShowGuestPurchases)
     {
         // Don't show the money effect for guest purchases when the option is disabled.
         return;
     }
 
-    DrawPixelInfo& dpi = session.DPI;
-    if (dpi.zoom_level > ZoomLevel{ 0 })
+    RenderTarget& rt = session.DPI;
+    if (rt.zoom_level > ZoomLevel{ 0 })
     {
         return;
     }

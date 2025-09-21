@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,21 +9,22 @@
 
 #include "Research.h"
 
+#include "../Context.h"
 #include "../Date.h"
+#include "../Diagnostic.h"
 #include "../Game.h"
 #include "../GameState.h"
 #include "../OpenRCT2.h"
 #include "../actions/ParkSetResearchFundingAction.h"
 #include "../config/Config.h"
 #include "../core/BitSet.hpp"
+#include "../core/EnumUtils.hpp"
 #include "../core/Guard.hpp"
 #include "../core/Memory.hpp"
-#include "../interface/Window.h"
-#include "../localisation/Date.h"
 #include "../localisation/Formatter.h"
-#include "../localisation/Localisation.h"
 #include "../localisation/StringIds.h"
 #include "../object/ObjectEntryManager.h"
+#include "../object/ObjectLimits.h"
 #include "../object/ObjectList.h"
 #include "../object/RideObject.h"
 #include "../object/SceneryGroupEntry.h"
@@ -33,13 +34,13 @@
 #include "../ride/RideEntry.h"
 #include "../ride/TrackData.h"
 #include "../scenario/Scenario.h"
-#include "../util/Util.h"
+#include "../ui/WindowManager.h"
+#include "../windows/Intent.h"
 #include "../world/Park.h"
 #include "../world/Scenery.h"
 #include "Finance.h"
 #include "NewsItem.h"
 
-#include <algorithm>
 #include <iterator>
 
 using namespace OpenRCT2;
@@ -51,35 +52,29 @@ static constexpr int32_t _researchRate[] = {
     400,
 };
 
-uint8_t gResearchFundingLevel;
-uint8_t gResearchPriorities;
-uint16_t gResearchProgress;
-uint8_t gResearchProgressStage;
-std::optional<ResearchItem> gResearchLastItem;
-uint8_t gResearchExpectedMonth;
-uint8_t gResearchExpectedDay;
-std::optional<ResearchItem> gResearchNextItem;
-
-std::vector<ResearchItem> gResearchItemsUninvented;
-std::vector<ResearchItem> gResearchItemsInvented;
-
-// 0x00EE787C
-uint8_t gResearchUncompletedCategories;
-
 static bool _researchedRideTypes[RIDE_TYPE_COUNT];
-static bool _researchedRideEntries[MAX_RIDE_OBJECTS];
+static bool _researchedRideEntries[kMaxRideObjects];
 static bool _researchedSceneryItems[SCENERY_TYPE_COUNT][UINT16_MAX];
 
 bool gSilentResearch = false;
+
+// clang-format off
+const StringId kResearchFundingLevelNames[] = {
+    STR_RESEARCH_FUNDING_NONE,
+    STR_RESEARCH_FUNDING_MINIMUM,
+    STR_RESEARCH_FUNDING_NORMAL,
+    STR_RESEARCH_FUNDING_MAXIMUM,
+};
+// clang-format on
 
 /**
  *
  *  rct2: 0x006671AD, part of 0x00667132
  */
-void ResearchResetItems()
+void ResearchResetItems(GameState_t& gameState)
 {
-    gResearchItemsUninvented.clear();
-    gResearchItemsInvented.clear();
+    gameState.researchItemsUninvented.clear();
+    gameState.researchItemsInvented.clear();
 }
 
 /**
@@ -88,14 +83,15 @@ void ResearchResetItems()
  */
 void ResearchUpdateUncompletedTypes()
 {
+    auto& gameState = getGameState();
     int32_t uncompletedResearchTypes = 0;
 
-    for (auto const& researchItem : gResearchItemsUninvented)
+    for (auto const& researchItem : gameState.researchItemsUninvented)
     {
         uncompletedResearchTypes |= EnumToFlag(researchItem.category);
     }
 
-    gResearchUncompletedCategories = uncompletedResearchTypes;
+    gameState.researchUncompletedCategories = uncompletedResearchTypes;
 }
 
 /**
@@ -104,17 +100,19 @@ void ResearchUpdateUncompletedTypes()
  */
 static void ResearchCalculateExpectedDate()
 {
-    if (gResearchProgressStage == RESEARCH_STAGE_INITIAL_RESEARCH || gResearchFundingLevel == RESEARCH_FUNDING_NONE)
+    auto& gameState = getGameState();
+    if (gameState.researchProgressStage == RESEARCH_STAGE_INITIAL_RESEARCH
+        || gameState.researchFundingLevel == RESEARCH_FUNDING_NONE)
     {
-        gResearchExpectedDay = 255;
+        gameState.researchExpectedDay = 255;
     }
     else
     {
         auto& date = GetDate();
 
-        int32_t progressRemaining = gResearchProgressStage == RESEARCH_STAGE_COMPLETING_DESIGN ? 0x10000 : 0x20000;
-        progressRemaining -= gResearchProgress;
-        int32_t daysRemaining = (progressRemaining / _researchRate[gResearchFundingLevel]) * 128;
+        int32_t progressRemaining = gameState.researchProgressStage == RESEARCH_STAGE_COMPLETING_DESIGN ? 0x10000 : 0x20000;
+        progressRemaining -= gameState.researchProgress;
+        int32_t daysRemaining = (progressRemaining / _researchRate[gameState.researchFundingLevel]) * 128;
 
         int32_t expectedDay = date.GetMonthTicks() + (daysRemaining & 0xFFFF);
         int32_t dayQuotient = expectedDay / 0x10000;
@@ -123,25 +121,28 @@ static void ResearchCalculateExpectedDate()
         int32_t expectedMonth = DateGetMonth(date.GetMonthsElapsed() + dayQuotient + (daysRemaining >> 16));
         expectedDay = (dayRemainder * Date::GetDaysInMonth(expectedMonth)) >> 16;
 
-        gResearchExpectedDay = expectedDay;
-        gResearchExpectedMonth = expectedMonth;
+        gameState.researchExpectedDay = expectedDay;
+        gameState.researchExpectedMonth = expectedMonth;
     }
 }
 
 static void ResearchInvalidateRelatedWindows()
 {
-    WindowInvalidateByClass(WindowClass::ConstructRide);
-    WindowInvalidateByClass(WindowClass::Research);
+    auto* windowMgr = Ui::GetWindowManager();
+    windowMgr->InvalidateByClass(WindowClass::constructRide);
+    windowMgr->InvalidateByClass(WindowClass::research);
 }
 
 static void ResearchMarkAsFullyCompleted()
 {
-    gResearchProgress = 0;
-    gResearchProgressStage = RESEARCH_STAGE_FINISHED_ALL;
+    auto& gameState = getGameState();
+    gameState.researchProgress = 0;
+    gameState.researchProgressStage = RESEARCH_STAGE_FINISHED_ALL;
     ResearchInvalidateRelatedWindows();
+
     // Reset funding to 0 if no more rides.
-    auto gameAction = ParkSetResearchFundingAction(gResearchPriorities, 0);
-    GameActions::Execute(&gameAction);
+    auto gameAction = GameActions::ParkSetResearchFundingAction(gameState.researchPriorities, 0);
+    GameActions::Execute(&gameAction, gameState);
 }
 
 /**
@@ -150,37 +151,40 @@ static void ResearchMarkAsFullyCompleted()
  */
 static void ResearchNextDesign()
 {
-    if (gResearchItemsUninvented.empty())
+    auto& gameState = getGameState();
+    if (gameState.researchItemsUninvented.empty())
     {
         ResearchMarkAsFullyCompleted();
         return;
     }
 
     // Try to find a research item of a matching type, if none found, use any first item
-    auto it = std::find_if(gResearchItemsUninvented.begin(), gResearchItemsUninvented.end(), [](const auto& e) {
-        return (gResearchPriorities & EnumToFlag(e.category)) != 0;
-    });
-    if (it == gResearchItemsUninvented.end())
+    auto it = std::find_if(
+        gameState.researchItemsUninvented.begin(), gameState.researchItemsUninvented.end(),
+        [&gameState](const auto& e) { return (gameState.researchPriorities & EnumToFlag(e.category)) != 0; });
+    if (it == gameState.researchItemsUninvented.end())
     {
-        it = gResearchItemsUninvented.begin();
+        it = gameState.researchItemsUninvented.begin();
     }
 
-    gResearchNextItem = *it;
-    gResearchProgress = 0;
-    gResearchProgressStage = RESEARCH_STAGE_DESIGNING;
+    gameState.researchNextItem = *it;
+    gameState.researchProgress = 0;
+    gameState.researchProgressStage = RESEARCH_STAGE_DESIGNING;
 
     ResearchInvalidateRelatedWindows();
 }
 
 static void MarkResearchItemInvented(const ResearchItem& researchItem)
 {
-    gResearchItemsUninvented.erase(
-        std::remove(gResearchItemsUninvented.begin(), gResearchItemsUninvented.end(), researchItem),
-        gResearchItemsUninvented.end());
+    auto& gameState = getGameState();
+    gameState.researchItemsUninvented.erase(
+        std::remove(gameState.researchItemsUninvented.begin(), gameState.researchItemsUninvented.end(), researchItem),
+        gameState.researchItemsUninvented.end());
 
-    if (std::find(gResearchItemsInvented.begin(), gResearchItemsInvented.end(), researchItem) == gResearchItemsInvented.end())
+    if (std::find(gameState.researchItemsInvented.begin(), gameState.researchItemsInvented.end(), researchItem)
+        == gameState.researchItemsInvented.end())
     {
-        gResearchItemsInvented.push_back(researchItem);
+        gameState.researchItemsInvented.push_back(researchItem);
     }
 }
 
@@ -190,7 +194,8 @@ static void MarkResearchItemInvented(const ResearchItem& researchItem)
  */
 void ResearchFinishItem(const ResearchItem& researchItem)
 {
-    gResearchLastItem = researchItem;
+    auto& gameState = getGameState();
+    gameState.researchLastItem = researchItem;
     ResearchInvalidateRelatedWindows();
 
     if (researchItem.type == Research::EntryType::Ride)
@@ -200,7 +205,7 @@ void ResearchFinishItem(const ResearchItem& researchItem)
         ObjectEntryIndex rideEntryIndex = researchItem.entryIndex;
         const auto* rideEntry = GetRideEntryByIndex(rideEntryIndex);
 
-        if (rideEntry != nullptr && base_ride_type != RIDE_TYPE_NULL)
+        if (rideEntry != nullptr && base_ride_type != kRideTypeNull)
         {
             if (!RideTypeIsValid(base_ride_type))
             {
@@ -212,8 +217,8 @@ void ResearchFinishItem(const ResearchItem& researchItem)
             RideTypeSetInvented(base_ride_type);
             RideEntrySetInvented(rideEntryIndex);
 
-            bool seenRideEntry[MAX_RIDE_OBJECTS]{};
-            for (auto const& researchItem3 : gResearchItemsUninvented)
+            bool seenRideEntry[kMaxRideObjects]{};
+            for (auto const& researchItem3 : gameState.researchItemsUninvented)
             {
                 ObjectEntryIndex index = researchItem3.entryIndex;
                 seenRideEntry[index] = true;
@@ -221,14 +226,14 @@ void ResearchFinishItem(const ResearchItem& researchItem)
 
             // RCT2 made non-separated vehicles available at once, by removing all but one from research.
             // To ensure old files keep working, look for ride entries not in research, and make them available as well.
-            for (int32_t i = 0; i < MAX_RIDE_OBJECTS; i++)
+            for (int32_t i = 0; i < kMaxRideObjects; i++)
             {
                 if (!seenRideEntry[i])
                 {
                     const auto* rideEntry2 = GetRideEntryByIndex(i);
                     if (rideEntry2 != nullptr)
                     {
-                        for (uint8_t j = 0; j < RCT2::ObjectLimits::MaxRideTypesPerRideEntry; j++)
+                        for (uint8_t j = 0; j < RCT2::ObjectLimits::kMaxRideTypesPerRideEntry; j++)
                         {
                             if (rideEntry2->ride_type[j] == base_ride_type)
                             {
@@ -245,7 +250,7 @@ void ResearchFinishItem(const ResearchItem& researchItem)
 
             // If a vehicle is the first to be invented for its ride type, show the ride type/group name.
             // Independently listed vehicles (like all flat rides and shops) should always be announced as such.
-            if (GetRideTypeDescriptor(base_ride_type).HasFlag(RIDE_TYPE_FLAG_LIST_VEHICLES_SEPARATELY)
+            if (GetRideTypeDescriptor(base_ride_type).HasFlag(RtdFlag::listVehiclesSeparately)
                 || researchItem.flags & RESEARCH_ENTRY_FLAG_FIRST_OF_TYPE)
             {
                 RideNaming naming = GetRideNaming(base_ride_type, *rideEntry);
@@ -265,9 +270,9 @@ void ResearchFinishItem(const ResearchItem& researchItem)
 
             if (!gSilentResearch)
             {
-                if (gConfigNotifications.RideResearched)
+                if (Config::Get().notifications.RideResearched)
                 {
-                    News::AddItemToQueue(News::ItemType::Research, availabilityString, researchItem.rawValue, ft);
+                    News::AddItemToQueue(News::ItemType::research, availabilityString, researchItem.rawValue, ft);
                 }
             }
 
@@ -287,15 +292,17 @@ void ResearchFinishItem(const ResearchItem& researchItem)
 
             if (!gSilentResearch)
             {
-                if (gConfigNotifications.RideResearched)
+                if (Config::Get().notifications.RideResearched)
                 {
                     News::AddItemToQueue(
-                        News::ItemType::Research, STR_NEWS_ITEM_RESEARCH_NEW_SCENERY_SET_AVAILABLE, researchItem.rawValue, ft);
+                        News::ItemType::research, STR_NEWS_ITEM_RESEARCH_NEW_SCENERY_SET_AVAILABLE, researchItem.rawValue, ft);
                 }
             }
 
             ResearchInvalidateRelatedWindows();
-            SceneryInit();
+
+            auto intent = Intent(INTENT_ACTION_INIT_SCENERY);
+            ContextBroadcastIntent(&intent);
         }
     }
 }
@@ -308,60 +315,59 @@ void ResearchUpdate()
 {
     PROFILED_FUNCTION();
 
-    int32_t editorScreenFlags, researchLevel, currentResearchProgress;
+    int32_t researchLevel, currentResearchProgress;
 
-    editorScreenFlags = SCREEN_FLAGS_SCENARIO_EDITOR | SCREEN_FLAGS_TRACK_DESIGNER | SCREEN_FLAGS_TRACK_MANAGER;
-    if (gScreenFlags & editorScreenFlags)
+    if (isInEditorMode())
     {
         return;
     }
 
-    auto& gameState = GetGameState();
-    if (gameState.CurrentTicks % 32 != 0)
+    auto& gameState = getGameState();
+    if (gameState.currentTicks % 32 != 0)
     {
         return;
     }
 
-    if ((gameState.ParkFlags & PARK_FLAGS_NO_MONEY) && gResearchFundingLevel == RESEARCH_FUNDING_NONE)
+    if ((gameState.park.flags & PARK_FLAGS_NO_MONEY) && gameState.researchFundingLevel == RESEARCH_FUNDING_NONE)
     {
         researchLevel = RESEARCH_FUNDING_NORMAL;
     }
     else
     {
-        researchLevel = gResearchFundingLevel;
+        researchLevel = gameState.researchFundingLevel;
     }
 
-    currentResearchProgress = gResearchProgress;
+    currentResearchProgress = gameState.researchProgress;
     currentResearchProgress += _researchRate[researchLevel];
     if (currentResearchProgress <= 0xFFFF)
     {
-        gResearchProgress = currentResearchProgress;
+        gameState.researchProgress = currentResearchProgress;
     }
     else
     {
-        switch (gResearchProgressStage)
+        switch (gameState.researchProgressStage)
         {
             case RESEARCH_STAGE_INITIAL_RESEARCH:
                 ResearchNextDesign();
                 ResearchCalculateExpectedDate();
                 break;
             case RESEARCH_STAGE_DESIGNING:
-                gResearchProgress = 0;
-                gResearchProgressStage = RESEARCH_STAGE_COMPLETING_DESIGN;
+                gameState.researchProgress = 0;
+                gameState.researchProgressStage = RESEARCH_STAGE_COMPLETING_DESIGN;
                 ResearchCalculateExpectedDate();
                 ResearchInvalidateRelatedWindows();
                 break;
             case RESEARCH_STAGE_COMPLETING_DESIGN:
-                MarkResearchItemInvented(*gResearchNextItem);
-                ResearchFinishItem(*gResearchNextItem);
-                gResearchProgress = 0;
-                gResearchProgressStage = RESEARCH_STAGE_INITIAL_RESEARCH;
+                MarkResearchItemInvented(*gameState.researchNextItem);
+                ResearchFinishItem(*gameState.researchNextItem);
+                gameState.researchProgress = 0;
+                gameState.researchProgressStage = RESEARCH_STAGE_INITIAL_RESEARCH;
                 ResearchCalculateExpectedDate();
                 ResearchUpdateUncompletedTypes();
                 ResearchInvalidateRelatedWindows();
                 break;
             case RESEARCH_STAGE_FINISHED_ALL:
-                gResearchFundingLevel = RESEARCH_FUNDING_NONE;
+                gameState.researchFundingLevel = RESEARCH_FUNDING_NONE;
                 break;
         }
     }
@@ -373,6 +379,7 @@ void ResearchUpdate()
  */
 void ResearchResetCurrentItem()
 {
+    auto& gameState = getGameState();
     SetEveryRideTypeNotInvented();
     SetEveryRideEntryNotInvented();
 
@@ -380,14 +387,14 @@ void ResearchResetCurrentItem()
     SetAllSceneryItemsInvented();
     SetAllSceneryGroupsNotInvented();
 
-    for (const auto& researchItem : gResearchItemsInvented)
+    for (const auto& researchItem : gameState.researchItemsInvented)
     {
         ResearchFinishItem(researchItem);
     }
 
-    gResearchLastItem = std::nullopt;
-    gResearchProgressStage = RESEARCH_STAGE_INITIAL_RESEARCH;
-    gResearchProgress = 0;
+    gameState.researchLastItem = std::nullopt;
+    gameState.researchProgressStage = RESEARCH_STAGE_INITIAL_RESEARCH;
+    gameState.researchProgress = 0;
 }
 
 /**
@@ -396,13 +403,14 @@ void ResearchResetCurrentItem()
  */
 static void ResearchInsertUnresearched(ResearchItem&& item)
 {
+    auto& gameState = getGameState();
     // First check to make sure that entry is not already accounted for
     if (item.Exists())
     {
         return;
     }
 
-    gResearchItemsUninvented.push_back(std::move(item));
+    gameState.researchItemsUninvented.push_back(std::move(item));
 }
 
 /**
@@ -411,13 +419,14 @@ static void ResearchInsertUnresearched(ResearchItem&& item)
  */
 static void ResearchInsertResearched(ResearchItem&& item)
 {
+    auto& gameState = getGameState();
     // First check to make sure that entry is not already accounted for
     if (item.Exists())
     {
         return;
     }
 
-    gResearchItemsInvented.push_back(std::move(item));
+    gameState.researchItemsInvented.push_back(std::move(item));
 }
 
 /**
@@ -426,11 +435,13 @@ static void ResearchInsertResearched(ResearchItem&& item)
  */
 void ResearchRemove(const ResearchItem& researchItem)
 {
-    gResearchItemsUninvented.erase(
-        std::remove(gResearchItemsUninvented.begin(), gResearchItemsUninvented.end(), researchItem),
-        gResearchItemsUninvented.end());
-    gResearchItemsInvented.erase(
-        std::remove(gResearchItemsInvented.begin(), gResearchItemsInvented.end(), researchItem), gResearchItemsInvented.end());
+    auto& gameState = getGameState();
+    gameState.researchItemsUninvented.erase(
+        std::remove(gameState.researchItemsUninvented.begin(), gameState.researchItemsUninvented.end(), researchItem),
+        gameState.researchItemsUninvented.end());
+    gameState.researchItemsInvented.erase(
+        std::remove(gameState.researchItemsInvented.begin(), gameState.researchItemsInvented.end(), researchItem),
+        gameState.researchItemsInvented.end());
 }
 
 void ResearchInsert(ResearchItem&& item, bool researched)
@@ -451,10 +462,11 @@ void ResearchInsert(ResearchItem&& item, bool researched)
  */
 void ResearchPopulateListRandom()
 {
-    ResearchResetItems();
+    auto& gameState = getGameState();
+    ResearchResetItems(gameState);
 
     // Rides
-    for (int32_t i = 0; i < MAX_RIDE_OBJECTS; i++)
+    for (int32_t i = 0; i < kMaxRideObjects; i++)
     {
         const auto* rideEntry = GetRideEntryByIndex(i);
         if (rideEntry == nullptr)
@@ -465,7 +477,7 @@ void ResearchPopulateListRandom()
         int32_t researched = (ScenarioRand() & 0xFF) > 128;
         for (auto rideType : rideEntry->ride_type)
         {
-            if (rideType != RIDE_TYPE_NULL)
+            if (rideType != kRideTypeNull)
             {
                 ResearchCategory category = GetRideTypeDescriptor(rideType).GetResearchCategory();
                 ResearchInsertRideEntry(rideType, i, category, researched);
@@ -474,7 +486,7 @@ void ResearchPopulateListRandom()
     }
 
     // Scenery
-    for (uint32_t i = 0; i < MAX_SCENERY_GROUP_OBJECTS; i++)
+    for (uint32_t i = 0; i < kMaxSceneryGroupObjects; i++)
     {
         const auto* sceneryGroupEntry = OpenRCT2::ObjectManager::GetObjectEntry<SceneryGroupEntry>(i);
         if (sceneryGroupEntry == nullptr)
@@ -489,7 +501,7 @@ void ResearchPopulateListRandom()
 
 bool ResearchInsertRideEntry(ride_type_t rideType, ObjectEntryIndex entryIndex, ResearchCategory category, bool researched)
 {
-    if (rideType != RIDE_TYPE_NULL && entryIndex != OBJECT_ENTRY_INDEX_NULL)
+    if (rideType != kRideTypeNull && entryIndex != kObjectEntryIndexNull)
     {
         auto tmpItem = ResearchItem(Research::EntryType::Ride, entryIndex, rideType, category, 0);
         ResearchInsert(std::move(tmpItem), researched);
@@ -507,7 +519,7 @@ void ResearchInsertRideEntry(ObjectEntryIndex entryIndex, bool researched)
 
     for (auto rideType : rideEntry->ride_type)
     {
-        if (rideType != RIDE_TYPE_NULL)
+        if (rideType != kRideTypeNull)
         {
             ResearchCategory category = GetRideTypeDescriptor(rideType).GetResearchCategory();
             ResearchInsertRideEntry(rideType, entryIndex, category, researched);
@@ -517,7 +529,7 @@ void ResearchInsertRideEntry(ObjectEntryIndex entryIndex, bool researched)
 
 bool ResearchInsertSceneryGroupEntry(ObjectEntryIndex entryIndex, bool researched)
 {
-    if (entryIndex != OBJECT_ENTRY_INDEX_NULL)
+    if (entryIndex != kObjectEntryIndexNull)
     {
         auto tmpItem = ResearchItem(Research::EntryType::Scenery, entryIndex, 0, ResearchCategory::SceneryGroup, 0);
         ResearchInsert(std::move(tmpItem), researched);
@@ -530,26 +542,26 @@ bool ResearchIsInvented(ObjectType objectType, ObjectEntryIndex index)
 {
     switch (objectType)
     {
-        case ObjectType::Ride:
+        case ObjectType::ride:
             return RideEntryIsInvented(index);
-        case ObjectType::SceneryGroup:
+        case ObjectType::sceneryGroup:
             return SceneryGroupIsInvented(index);
-        case ObjectType::SmallScenery:
+        case ObjectType::smallScenery:
             return SceneryIsInvented({ SCENERY_TYPE_SMALL, index });
-        case ObjectType::LargeScenery:
+        case ObjectType::largeScenery:
             return SceneryIsInvented({ SCENERY_TYPE_LARGE, index });
-        case ObjectType::Walls:
+        case ObjectType::walls:
             return SceneryIsInvented({ SCENERY_TYPE_WALL, index });
-        case ObjectType::Banners:
+        case ObjectType::banners:
             return SceneryIsInvented({ SCENERY_TYPE_BANNER, index });
-        case ObjectType::PathAdditions:
+        case ObjectType::pathAdditions:
             return SceneryIsInvented({ SCENERY_TYPE_PATH_ITEM, index });
         default:
             return true;
     }
 }
 
-bool RideTypeIsInvented(uint32_t rideType)
+bool RideTypeIsInvented(ride_type_t rideType)
 {
     return RideTypeIsValid(rideType) ? _researchedRideTypes[rideType] : false;
 }
@@ -562,7 +574,7 @@ bool RideEntryIsInvented(ObjectEntryIndex rideEntryIndex)
     return _researchedRideEntries[rideEntryIndex];
 }
 
-void RideTypeSetInvented(uint32_t rideType)
+void RideTypeSetInvented(ride_type_t rideType)
 {
     if (RideTypeIsValid(rideType))
     {
@@ -615,6 +627,7 @@ void ScenerySetNotInvented(const ScenerySelection& sceneryItem)
 
 bool SceneryGroupIsInvented(int32_t sgIndex)
 {
+    auto& gameState = getGameState();
     const auto sgEntry = OpenRCT2::ObjectManager::GetObjectEntry<SceneryGroupEntry>(sgIndex);
     if (sgEntry == nullptr || sgEntry->SceneryEntries.empty())
     {
@@ -622,18 +635,19 @@ bool SceneryGroupIsInvented(int32_t sgIndex)
     }
 
     // All scenery is temporarily invented when in the scenario editor
-    if (gScreenFlags & SCREEN_FLAGS_EDITOR)
+    if (isInEditorMode())
     {
         return true;
     }
 
-    if (gCheatsIgnoreResearchStatus)
+    if (getGameState().cheats.ignoreResearchStatus)
     {
         return true;
     }
 
     return std::none_of(
-        std::begin(gResearchItemsUninvented), std::end(gResearchItemsUninvented), [sgIndex](const ResearchItem& item) {
+        std::begin(gameState.researchItemsUninvented), std::end(gameState.researchItemsUninvented),
+        [sgIndex](const ResearchItem& item) {
             return item.type == Research::EntryType::Scenery && item.entryIndex == sgIndex;
         });
 }
@@ -652,7 +666,7 @@ void SceneryGroupSetInvented(int32_t sgIndex)
 
 void SetAllSceneryGroupsNotInvented()
 {
-    for (int32_t i = 0; i < MAX_SCENERY_GROUP_OBJECTS; ++i)
+    for (int32_t i = 0; i < kMaxSceneryGroupObjects; ++i)
     {
         const auto* scenery_set = OpenRCT2::ObjectManager::GetObjectEntry<SceneryGroupEntry>(i);
         if (scenery_set == nullptr)
@@ -714,7 +728,7 @@ StringId ResearchItem::GetName() const
         const auto* rideEntry = GetRideEntryByIndex(entryIndex);
         if (rideEntry == nullptr)
         {
-            return STR_EMPTY;
+            return kStringIdEmpty;
         }
 
         return rideEntry->naming.Name;
@@ -723,7 +737,7 @@ StringId ResearchItem::GetName() const
     const auto* sceneryEntry = OpenRCT2::ObjectManager::GetObjectEntry<SceneryGroupEntry>(entryIndex);
     if (sceneryEntry == nullptr)
     {
-        return STR_EMPTY;
+        return kStringIdEmpty;
     }
 
     return sceneryEntry->name;
@@ -737,11 +751,12 @@ StringId ResearchItem::GetName() const
  */
 void ResearchRemoveFlags()
 {
-    for (auto& researchItem : gResearchItemsUninvented)
+    auto& gameState = getGameState();
+    for (auto& researchItem : gameState.researchItemsUninvented)
     {
         researchItem.flags &= ~(RESEARCH_ENTRY_FLAG_RIDE_ALWAYS_RESEARCHED | RESEARCH_ENTRY_FLAG_SCENERY_SET_ALWAYS_RESEARCHED);
     }
-    for (auto& researchItem : gResearchItemsInvented)
+    for (auto& researchItem : gameState.researchItemsInvented)
     {
         researchItem.flags &= ~(RESEARCH_ENTRY_FLAG_RIDE_ALWAYS_RESEARCHED | RESEARCH_ENTRY_FLAG_SCENERY_SET_ALWAYS_RESEARCHED);
     }
@@ -772,7 +787,7 @@ static void ResearchMarkItemAsResearched(const ResearchItem& item)
             RideEntrySetInvented(item.entryIndex);
             for (auto rideType : rideEntry->ride_type)
             {
-                if (rideType != RIDE_TYPE_NULL)
+                if (rideType != kRideTypeNull)
                 {
                     RideTypeSetInvented(rideType);
                 }
@@ -794,16 +809,18 @@ static void ResearchMarkItemAsResearched(const ResearchItem& item)
 
 static void ResearchRebuildInventedTables()
 {
+    auto& gameState = getGameState();
     SetEveryRideTypeNotInvented();
     SetEveryRideEntryInvented();
     SetEveryRideEntryNotInvented();
     SetAllSceneryItemsNotInvented();
-    for (const auto& item : gResearchItemsInvented)
+    for (const auto& item : gameState.researchItemsInvented)
     {
         // Ignore item, if the research of it is in progress
-        if (gResearchProgressStage == RESEARCH_STAGE_DESIGNING || gResearchProgressStage == RESEARCH_STAGE_COMPLETING_DESIGN)
+        if (gameState.researchProgressStage == RESEARCH_STAGE_DESIGNING
+            || gameState.researchProgressStage == RESEARCH_STAGE_COMPLETING_DESIGN)
         {
-            if (item == gResearchNextItem)
+            if (item == gameState.researchNextItem)
             {
                 continue;
             }
@@ -816,21 +833,22 @@ static void ResearchRebuildInventedTables()
 
 static void ResearchAddAllMissingItems(bool isResearched)
 {
+    auto& gameState = getGameState();
     // Mark base ridetypes as seen if they exist in the invented research list.
-    bool seenBaseEntry[MAX_RIDE_OBJECTS]{};
-    for (auto const& researchItem : gResearchItemsInvented)
+    bool seenBaseEntry[kMaxRideObjects]{};
+    for (auto const& researchItem : gameState.researchItemsInvented)
     {
         ObjectEntryIndex index = researchItem.baseRideType;
         seenBaseEntry[index] = true;
     }
 
     // Unlock and add research entries to the invented list for ride types whose base ridetype has been seen.
-    for (ObjectEntryIndex i = 0; i < MAX_RIDE_OBJECTS; i++)
+    for (ObjectEntryIndex i = 0; i < kMaxRideObjects; i++)
     {
         const auto* rideEntry = GetRideEntryByIndex(i);
         if (rideEntry != nullptr)
         {
-            for (uint8_t j = 0; j < RCT2::ObjectLimits::MaxRideTypesPerRideEntry; j++)
+            for (uint8_t j = 0; j < RCT2::ObjectLimits::kMaxRideTypesPerRideEntry; j++)
             {
                 if (seenBaseEntry[rideEntry->ride_type[j]])
                 {
@@ -843,7 +861,7 @@ static void ResearchAddAllMissingItems(bool isResearched)
     }
 
     // Mark base ridetypes as seen if they exist in the uninvented research list.
-    for (auto const& researchItem : gResearchItemsUninvented)
+    for (auto const& researchItem : gameState.researchItemsUninvented)
     {
         ObjectEntryIndex index = researchItem.baseRideType;
         seenBaseEntry[index] = true;
@@ -851,13 +869,13 @@ static void ResearchAddAllMissingItems(bool isResearched)
 
     // Only add Rides to uninvented research that haven't had their base ridetype seen.
     // This prevents rct2 grouped rides from only unlocking the first train.
-    for (ObjectEntryIndex i = 0; i < MAX_RIDE_OBJECTS; i++)
+    for (ObjectEntryIndex i = 0; i < kMaxRideObjects; i++)
     {
         const auto* rideEntry = GetRideEntryByIndex(i);
         if (rideEntry != nullptr)
         {
             bool baseSeen = false;
-            for (uint8_t j = 0; j < RCT2::ObjectLimits::MaxRideTypesPerRideEntry; j++)
+            for (uint8_t j = 0; j < RCT2::ObjectLimits::kMaxRideTypesPerRideEntry; j++)
             {
                 if (seenBaseEntry[rideEntry->ride_type[j]])
                 {
@@ -872,7 +890,7 @@ static void ResearchAddAllMissingItems(bool isResearched)
         }
     }
 
-    for (ObjectEntryIndex i = 0; i < MAX_SCENERY_GROUP_OBJECTS; i++)
+    for (ObjectEntryIndex i = 0; i < kMaxSceneryGroupObjects; i++)
     {
         const auto* groupEntry = OpenRCT2::ObjectManager::GetObjectEntry<SceneryGroupEntry>(i);
         if (groupEntry != nullptr)
@@ -884,13 +902,14 @@ static void ResearchAddAllMissingItems(bool isResearched)
 
 void ResearchFix()
 {
+    auto& gameState = getGameState();
     // Remove null entries from the research list
-    ResearchRemoveNullItems(gResearchItemsInvented);
-    ResearchRemoveNullItems(gResearchItemsUninvented);
+    ResearchRemoveNullItems(gameState.researchItemsInvented);
+    ResearchRemoveNullItems(gameState.researchItemsUninvented);
 
     // Add missing entries to the research list
     // If research is complete, mark all the missing items as available
-    ResearchAddAllMissingItems(gResearchProgressStage == RESEARCH_STAGE_FINISHED_ALL);
+    ResearchAddAllMissingItems(gameState.researchProgressStage == RESEARCH_STAGE_FINISHED_ALL);
 
     // Now rebuild all the tables that say whether a ride or scenery item is invented
     ResearchRebuildInventedTables();
@@ -899,18 +918,20 @@ void ResearchFix()
 
 void ResearchItemsMakeAllUnresearched()
 {
-    gResearchItemsUninvented.insert(
-        gResearchItemsUninvented.end(), std::make_move_iterator(gResearchItemsInvented.begin()),
-        std::make_move_iterator(gResearchItemsInvented.end()));
-    gResearchItemsInvented.clear();
+    auto& gameState = getGameState();
+    gameState.researchItemsUninvented.insert(
+        gameState.researchItemsUninvented.end(), std::make_move_iterator(gameState.researchItemsInvented.begin()),
+        std::make_move_iterator(gameState.researchItemsInvented.end()));
+    gameState.researchItemsInvented.clear();
 }
 
 void ResearchItemsMakeAllResearched()
 {
-    gResearchItemsInvented.insert(
-        gResearchItemsInvented.end(), std::make_move_iterator(gResearchItemsUninvented.begin()),
-        std::make_move_iterator(gResearchItemsUninvented.end()));
-    gResearchItemsUninvented.clear();
+    auto& gameState = getGameState();
+    gameState.researchItemsInvented.insert(
+        gameState.researchItemsInvented.end(), std::make_move_iterator(gameState.researchItemsUninvented.begin()),
+        std::make_move_iterator(gameState.researchItemsUninvented.end()));
+    gameState.researchItemsUninvented.clear();
 }
 
 /**
@@ -919,7 +940,10 @@ void ResearchItemsMakeAllResearched()
  */
 void ResearchItemsShuffle()
 {
-    std::shuffle(std::begin(gResearchItemsUninvented), std::end(gResearchItemsUninvented), std::default_random_engine{});
+    auto& gameState = getGameState();
+    std::shuffle(
+        std::begin(gameState.researchItemsUninvented), std::end(gameState.researchItemsUninvented),
+        std::default_random_engine{});
 }
 
 bool ResearchItem::IsAlwaysResearched() const
@@ -929,24 +953,25 @@ bool ResearchItem::IsAlwaysResearched() const
 
 bool ResearchItem::IsNull() const
 {
-    return entryIndex == OBJECT_ENTRY_INDEX_NULL;
+    return entryIndex == kObjectEntryIndexNull;
 }
 
 void ResearchItem::SetNull()
 {
-    entryIndex = OBJECT_ENTRY_INDEX_NULL;
+    entryIndex = kObjectEntryIndexNull;
 }
 
 bool ResearchItem::Exists() const
 {
-    for (auto const& researchItem : gResearchItemsUninvented)
+    auto& gameState = getGameState();
+    for (auto const& researchItem : gameState.researchItemsUninvented)
     {
         if (researchItem == *this)
         {
             return true;
         }
     }
-    for (auto const& researchItem : gResearchItemsInvented)
+    for (auto const& researchItem : gameState.researchItemsInvented)
     {
         if (researchItem == *this)
         {
@@ -1018,7 +1043,7 @@ static void ResearchUpdateFirstOfType(ResearchItem* researchItem)
 
     researchItem->flags &= ~RESEARCH_ENTRY_FLAG_FIRST_OF_TYPE;
     const auto& rtd = GetRideTypeDescriptor(rideType);
-    if (rtd.HasFlag(RIDE_TYPE_FLAG_LIST_VEHICLES_SEPARATELY))
+    if (rtd.HasFlag(RtdFlag::listVehiclesSeparately))
     {
         researchItem->flags |= RESEARCH_ENTRY_FLAG_FIRST_OF_TYPE;
         return;
@@ -1039,9 +1064,10 @@ static void ResearchMarkRideTypeAsSeen(const ResearchItem& researchItem)
 
 void ResearchDetermineFirstOfType()
 {
+    auto& gameState = getGameState();
     _seenRideType.reset();
 
-    for (const auto& researchItem : gResearchItemsInvented)
+    for (const auto& researchItem : gameState.researchItemsInvented)
     {
         if (researchItem.type != Research::EntryType::Ride)
             continue;
@@ -1051,40 +1077,43 @@ void ResearchDetermineFirstOfType()
             continue;
 
         const auto& rtd = GetRideTypeDescriptor(rideType);
-        if (rtd.HasFlag(RIDE_TYPE_FLAG_LIST_VEHICLES_SEPARATELY))
+        if (rtd.HasFlag(RtdFlag::listVehiclesSeparately))
             continue;
 
-        // The last research item will also be present in gResearchItemsInvented.
+        // The last research item will also be present in gameState.researchItemsInvented.
         // Avoid marking its ride type as "invented" prematurely.
-        if (gResearchLastItem.has_value() && !gResearchLastItem->IsNull() && researchItem == gResearchLastItem.value())
+        if (gameState.researchLastItem.has_value() && !gameState.researchLastItem->IsNull()
+            && researchItem == gameState.researchLastItem.value())
             continue;
 
-        // The next research item is (sometimes?) also present in gResearchItemsInvented, even though it isn't invented yet(!)
-        if (gResearchNextItem.has_value() && !gResearchNextItem->IsNull() && researchItem == gResearchNextItem.value())
+        // The next research item is (sometimes?) also present in gameState.researchItemsInvented, even though it isn't invented
+        // yet(!)
+        if (gameState.researchNextItem.has_value() && !gameState.researchNextItem->IsNull()
+            && researchItem == gameState.researchNextItem.value())
             continue;
 
         ResearchMarkRideTypeAsSeen(researchItem);
     }
 
-    if (gResearchLastItem.has_value())
+    if (gameState.researchLastItem.has_value())
     {
-        ResearchUpdateFirstOfType(&gResearchLastItem.value());
-        ResearchMarkRideTypeAsSeen(gResearchLastItem.value());
+        ResearchUpdateFirstOfType(&gameState.researchLastItem.value());
+        ResearchMarkRideTypeAsSeen(gameState.researchLastItem.value());
     }
-    if (gResearchNextItem.has_value())
+    if (gameState.researchNextItem.has_value())
     {
-        ResearchUpdateFirstOfType(&gResearchNextItem.value());
-        ResearchMarkRideTypeAsSeen(gResearchNextItem.value());
+        ResearchUpdateFirstOfType(&gameState.researchNextItem.value());
+        ResearchMarkRideTypeAsSeen(gameState.researchNextItem.value());
     }
 
-    for (auto& researchItem : gResearchItemsUninvented)
+    for (auto& researchItem : gameState.researchItemsUninvented)
     {
-        // The next research item is (sometimes?) also present in gResearchItemsUninvented
-        if (gResearchNextItem.has_value() && !gResearchNextItem->IsNull()
-            && researchItem.baseRideType == gResearchNextItem.value().baseRideType)
+        // The next research item is (sometimes?) also present in gameState.researchItemsUninvented
+        if (gameState.researchNextItem.has_value() && !gameState.researchNextItem->IsNull()
+            && researchItem.baseRideType == gameState.researchNextItem.value().baseRideType)
         {
             // Copy the "first of type" flag.
-            researchItem.flags = gResearchNextItem->flags;
+            researchItem.flags = gameState.researchNextItem->flags;
             continue;
         }
 

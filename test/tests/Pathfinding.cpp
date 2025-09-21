@@ -1,20 +1,23 @@
 #include "TestData.h"
-#include "openrct2/core/StringReader.h"
-#include "openrct2/entity/Guest.h"
-#include "openrct2/peep/GuestPathfinding.h"
-#include "openrct2/ride/Station.h"
-#include "openrct2/scenario/Scenario.h"
 
 #include <gtest/gtest.h>
 #include <memory>
 #include <openrct2/Context.h>
 #include <openrct2/Game.h>
+#include <openrct2/GameState.h>
 #include <openrct2/OpenRCT2.h>
 #include <openrct2/ParkImporter.h>
 #include <openrct2/core/String.hpp>
+#include <openrct2/core/StringReader.h>
+#include <openrct2/entity/Guest.h>
+#include <openrct2/peep/GuestPathfinding.h>
 #include <openrct2/platform/Platform.h>
+#include <openrct2/ride/RideManager.hpp>
+#include <openrct2/ride/Station.h>
+#include <openrct2/scenario/Scenario.h>
 #include <openrct2/world/Footpath.h>
 #include <openrct2/world/Map.h>
+#include <openrct2/world/tile_element/SurfaceElement.h>
 #include <ostream>
 #include <string>
 
@@ -55,10 +58,11 @@ public:
 protected:
     static Ride* FindRideByName(const char* name)
     {
-        for (auto& ride : GetRideManager())
+        auto& gameState = getGameState();
+        for (auto& ride : RideManager(gameState))
         {
-            auto thisName = ride.GetName();
-            if (String::StartsWith(thisName, u8string{ name }, true))
+            auto thisName = ride.getName();
+            if (String::startsWith(thisName, u8string{ name }, true))
             {
                 return &ride;
             }
@@ -85,9 +89,8 @@ protected:
 
         // Pick the direction the peep should initially move in, given the goal position.
         // This will also store the goal position and initialize pathfinding data for the peep.
-        gPeepPathFindGoalPosition = goal;
-        const Direction moveDir = gGuestPathfinder->ChooseDirection(*pos, *peep);
-        if (moveDir == INVALID_DIRECTION)
+        const Direction moveDir = PathFinding::ChooseDirection(*pos, goal, *peep, false, RideId::GetNull());
+        if (moveDir == kInvalidDirection)
         {
             // Couldn't determine a direction to move off in
             return false;
@@ -107,8 +110,7 @@ protected:
         int step = 0;
         while (!(*pos == goal) && step < expectedSteps)
         {
-            uint8_t pathingResult = 0;
-            peep->PerformNextAction(pathingResult);
+            peep->PerformNextAction();
             ++step;
 
             *pos = TileCoordsXYZ(peep->GetLocation());
@@ -200,7 +202,7 @@ TEST_P(SimplePathfindingTest, CanFindPathFromStartToGoal)
     auto ride = FindRideByName(scenario.name);
     ASSERT_NE(ride, nullptr);
 
-    auto entrancePos = ride->GetStation().Entrance;
+    auto entrancePos = ride->getStation().Entrance;
     TileCoordsXYZ goal = TileCoordsXYZ(
         entrancePos.x - TileDirectionDelta[entrancePos.direction].x,
         entrancePos.y - TileDirectionDelta[entrancePos.direction].y, entrancePos.z);
@@ -238,7 +240,7 @@ TEST_P(ImpossiblePathfindingTest, CannotFindPathFromStartToGoal)
     auto ride = FindRideByName(scenario.name);
     ASSERT_NE(ride, nullptr);
 
-    auto entrancePos = ride->GetStation().Entrance;
+    auto entrancePos = ride->getStation().Entrance;
     TileCoordsXYZ goal = TileCoordsXYZ(
         entrancePos.x + TileDirectionDelta[entrancePos.direction].x,
         entrancePos.y + TileDirectionDelta[entrancePos.direction].y, entrancePos.z);

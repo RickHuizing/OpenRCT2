@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,23 +11,26 @@
 
 #include "GameAction.h"
 
-class MazeSetTrackAction final : public GameActionBase<GameCommand::SetMazeTrack>
+namespace OpenRCT2::GameActions
 {
-private:
-    CoordsXYZD _loc;
-    bool _initialPlacement{};
-    RideId _rideIndex{ RideId::GetNull() };
-    uint8_t _mode{};
+    class MazeSetTrackAction final : public GameActionBase<GameCommand::SetMazeTrack>
+    {
+    private:
+        CoordsXYZD _loc;
+        bool _initialPlacement{};
+        RideId _rideIndex{ RideId::GetNull() };
+        uint8_t _mode{};
 
-public:
-    MazeSetTrackAction() = default;
-    MazeSetTrackAction(const CoordsXYZD& location, bool initialPlacement, RideId rideIndex, uint8_t mode);
+    public:
+        MazeSetTrackAction() = default;
+        MazeSetTrackAction(const CoordsXYZD& location, bool initialPlacement, RideId rideIndex, uint8_t mode);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    uint8_t MazeGetSegmentBit(const CoordsXY&) const;
-};
+    private:
+        uint8_t MazeGetSegmentBit(const CoordsXY&) const;
+    };
+} // namespace OpenRCT2::GameActions

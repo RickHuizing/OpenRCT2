@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,8 +9,10 @@
 
 #pragma once
 
-#include "../common.h"
+#include "../SpriteIds.h"
+#include "../localisation/StringIds.h"
 
+#include <cstdint>
 #include <vector>
 
 enum class AwardType : uint16_t
@@ -42,8 +44,10 @@ struct Award
     AwardType Type;
 };
 
-std::vector<Award>& GetAwards();
-
 bool AwardIsPositive(AwardType type);
+ImageIndex AwardGetSprite(AwardType type);
+StringId AwardGetText(AwardType type);
+StringId AwardGetNews(AwardType type);
+void AwardGrant(AwardType type);
 void AwardReset();
 void AwardUpdateAll();

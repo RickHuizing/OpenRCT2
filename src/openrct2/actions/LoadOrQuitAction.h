@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,29 +9,33 @@
 
 #pragma once
 
+#include "../interface/Window.h"
 #include "GameAction.h"
 
-enum class LoadOrQuitModes : uint8_t
+namespace OpenRCT2::GameActions
 {
-    OpenSavePrompt,
-    CloseSavePrompt
-};
+    enum class LoadOrQuitModes : uint8_t
+    {
+        OpenSavePrompt,
+        CloseSavePrompt
+    };
 
-class LoadOrQuitAction final : public GameActionBase<GameCommand::LoadOrQuit>
-{
-private:
-    LoadOrQuitModes _mode{};
-    PromptMode _savePromptMode{ PromptMode::SaveBeforeLoad };
+    class LoadOrQuitAction final : public GameActionBase<GameCommand::LoadOrQuit>
+    {
+    private:
+        LoadOrQuitModes _mode{};
+        PromptMode _savePromptMode{ PromptMode::saveBeforeLoad };
 
-public:
-    LoadOrQuitAction() = default;
-    LoadOrQuitAction(LoadOrQuitModes mode, PromptMode savePromptMode = PromptMode::SaveBeforeLoad);
+    public:
+        LoadOrQuitAction() = default;
+        LoadOrQuitAction(LoadOrQuitModes mode, PromptMode savePromptMode = PromptMode::saveBeforeLoad);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

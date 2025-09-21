@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,22 +11,22 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "../windows/Window.h"
-#    include "CustomMenu.h"
-#    include "ScImageManager.hpp"
-#    include "ScTileSelection.hpp"
-#    include "ScViewport.hpp"
-#    include "ScWindow.hpp"
+    #include "../windows/Windows.h"
+    #include "CustomMenu.h"
+    #include "ScImageManager.hpp"
+    #include "ScTileSelection.hpp"
+    #include "ScViewport.hpp"
+    #include "ScWindow.hpp"
 
-#    include <algorithm>
-#    include <memory>
-#    include <openrct2/Context.h>
-#    include <openrct2/Input.h>
-#    include <openrct2/common.h>
-#    include <openrct2/scenario/ScenarioRepository.h>
-#    include <openrct2/scripting/Duktape.hpp>
-#    include <openrct2/scripting/ScriptEngine.h>
-#    include <string>
+    #include <algorithm>
+    #include <memory>
+    #include <openrct2/Context.h>
+    #include <openrct2/Input.h>
+    #include <openrct2/scenario/ScenarioCategory.h>
+    #include <openrct2/scenario/ScenarioRepository.h>
+    #include <openrct2/scripting/Duktape.hpp>
+    #include <openrct2/scripting/ScriptEngine.h>
+    #include <string>
 
 namespace OpenRCT2::Scripting
 {
@@ -40,38 +40,42 @@ namespace OpenRCT2::Ui::Windows
 
 namespace OpenRCT2::Scripting
 {
-    static const DukEnumMap<SCENARIO_CATEGORY> ScenarioCategoryMap({
-        { "beginner", SCENARIO_CATEGORY_BEGINNER },
-        { "challenging", SCENARIO_CATEGORY_CHALLENGING },
-        { "expert", SCENARIO_CATEGORY_EXPERT },
-        { "real", SCENARIO_CATEGORY_REAL },
-        { "other", SCENARIO_CATEGORY_OTHER },
-        { "dlc", SCENARIO_CATEGORY_DLC },
-        { "build_your_own", SCENARIO_CATEGORY_BUILD_YOUR_OWN },
-        { "competitions", SCENARIO_CATEGORY_COMPETITIONS },
-    });
+    static const DukEnumMap<Scenario::Category> ScenarioCategoryMap(
+        {
+            { "beginner", Scenario::Category::beginner },
+            { "challenging", Scenario::Category::challenging },
+            { "expert", Scenario::Category::expert },
+            { "real", Scenario::Category::real },
+            { "other", Scenario::Category::other },
+            { "dlc", Scenario::Category::dlc },
+            { "build_your_own", Scenario::Category::buildYourOwn },
+            { "competitions", Scenario::Category::competitions },
+        });
 
-    static const DukEnumMap<ScenarioSource> ScenarioSourceMap({
-        { "rct1", ScenarioSource::RCT1 },
-        { "rct1_aa", ScenarioSource::RCT1_AA },
-        { "rct1_ll", ScenarioSource::RCT1_LL },
-        { "rct2", ScenarioSource::RCT2 },
-        { "rct2_ww", ScenarioSource::RCT2_WW },
-        { "rct2_tt", ScenarioSource::RCT2_TT },
-        { "real", ScenarioSource::Real },
-        { "extras", ScenarioSource::Extras },
-        { "other", ScenarioSource::Other },
-    });
+    static const DukEnumMap<ScenarioSource> ScenarioSourceMap(
+        {
+            { "rct1", ScenarioSource::RCT1 },
+            { "rct1_aa", ScenarioSource::RCT1_AA },
+            { "rct1_ll", ScenarioSource::RCT1_LL },
+            { "rct2", ScenarioSource::RCT2 },
+            { "rct2_ww", ScenarioSource::RCT2_WW },
+            { "rct2_tt", ScenarioSource::RCT2_TT },
+            { "real", ScenarioSource::Real },
+            { "extras", ScenarioSource::Extras },
+            { "other", ScenarioSource::Other },
+        });
 
-    template<> inline DukValue ToDuk(duk_context* ctx, const SCENARIO_CATEGORY& value)
+    template<>
+    inline DukValue ToDuk(duk_context* ctx, const Scenario::Category& value)
     {
         const auto& entry = ScenarioCategoryMap.find(value);
         if (entry != ScenarioCategoryMap.end())
             return ToDuk(ctx, entry->first);
-        return ToDuk(ctx, ScenarioCategoryMap[SCENARIO_CATEGORY_OTHER]);
+        return ToDuk(ctx, ScenarioCategoryMap[Scenario::Category::other]);
     }
 
-    template<> inline DukValue ToDuk(duk_context* ctx, const ScenarioSource& value)
+    template<>
+    inline DukValue ToDuk(duk_context* ctx, const ScenarioSource& value)
     {
         const auto& entry = ScenarioSourceMap.find(value);
         if (entry != ScenarioSourceMap.end())
@@ -136,12 +140,12 @@ namespace OpenRCT2::Scripting
         }
         int32_t windows_get() const
         {
-            return static_cast<int32_t>(g_window_list.size());
+            return static_cast<int32_t>(gWindowList.size());
         }
 
         std::shared_ptr<ScViewport> mainViewport_get() const
         {
-            return std::make_shared<ScViewport>(WindowClass::MainWindow);
+            return std::make_shared<ScViewport>(WindowClass::mainWindow);
         }
 
         std::shared_ptr<ScTileSelection> tileSelection_get() const
@@ -151,7 +155,7 @@ namespace OpenRCT2::Scripting
 
         std::shared_ptr<ScTool> tool_get() const
         {
-            if (InputTestFlag(INPUT_FLAG_TOOL_ACTIVE))
+            if (gInputFlags.has(InputFlag::toolActive))
             {
                 return std::make_shared<ScTool>(_scriptEngine.GetContext());
             }
@@ -183,32 +187,34 @@ namespace OpenRCT2::Scripting
 
         void closeWindows(std::string classification, DukValue id)
         {
+            auto* windowMgr = Ui::GetWindowManager();
             auto cls = GetClassification(classification);
-            if (cls != WindowClass::Null)
+            if (cls != WindowClass::null)
             {
                 if (id.type() == DukValue::Type::NUMBER)
                 {
-                    WindowCloseByNumber(cls, id.as_int());
+                    windowMgr->CloseByNumber(cls, id.as_uint());
                 }
                 else
                 {
-                    WindowCloseByClass(cls);
+                    windowMgr->CloseByClass(cls);
                 }
             }
         }
 
         void closeAllWindows()
         {
-            WindowCloseAll();
+            auto* windowMgr = Ui::GetWindowManager();
+            windowMgr->CloseAll();
         }
 
         std::shared_ptr<ScWindow> getWindow(DukValue a) const
         {
             if (a.type() == DukValue::Type::NUMBER)
             {
-                auto index = a.as_int();
-                auto i = 0;
-                for (const auto& w : g_window_list)
+                auto index = a.as_uint();
+                size_t i = 0;
+                for (const auto& w : gWindowList)
                 {
                     if (i == index)
                     {
@@ -231,22 +237,22 @@ namespace OpenRCT2::Scripting
 
         void showError(const std::string& title, const std::string& message)
         {
-            WindowErrorOpen(title, message);
+            ErrorOpen(title, message);
         }
 
         void showTextInput(const DukValue& desc)
         {
             try
             {
-                constexpr int32_t MaxLengthAllowed = 4096;
+                constexpr int32_t kMaxLengthAllowed = 4096;
                 auto plugin = _scriptEngine.GetExecInfo().GetCurrentPlugin();
                 auto title = desc["title"].as_string();
                 auto description = desc["description"].as_string();
                 auto initialValue = AsOrDefault(desc["initialValue"], "");
-                auto maxLength = AsOrDefault(desc["maxLength"], MaxLengthAllowed);
+                auto maxLength = AsOrDefault(desc["maxLength"], kMaxLengthAllowed);
                 auto callback = desc["callback"];
                 WindowTextInputOpen(
-                    title, description, initialValue, std::clamp(maxLength, 0, MaxLengthAllowed),
+                    title, description, initialValue, std::clamp(maxLength, 0, kMaxLengthAllowed),
                     [this, plugin, callback](std::string_view value) {
                         auto dukValue = ToDuk(_scriptEngine.GetContext(), value);
                         _scriptEngine.ExecutePluginCall(plugin, callback, { dukValue }, false);
@@ -269,23 +275,24 @@ namespace OpenRCT2::Scripting
                 auto defaultPath = AsOrDefault(desc["defaultPath"], "");
                 auto callback = desc["callback"];
 
-                int32_t loadSaveType{};
+                auto loadSaveAction = LoadSaveAction::load;
                 if (type == "load")
-                    loadSaveType = LOADSAVETYPE_LOAD;
+                    loadSaveAction = LoadSaveAction::load;
                 else
                     throw DukException();
 
+                LoadSaveType loadSaveType;
                 if (fileType == "game")
-                    loadSaveType |= LOADSAVETYPE_GAME;
+                    loadSaveType = LoadSaveType::park;
                 else if (fileType == "heightmap")
-                    loadSaveType |= LOADSAVETYPE_HEIGHTMAP;
+                    loadSaveType = LoadSaveType::heightmap;
                 else
                     throw DukException();
 
-                WindowLoadsaveOpen(
-                    loadSaveType, defaultPath,
-                    [this, plugin, callback](int32_t result, std::string_view path) {
-                        if (result == MODAL_RESULT_OK)
+                LoadsaveOpen(
+                    loadSaveAction, loadSaveType, defaultPath,
+                    [this, plugin, callback](ModalResult result, std::string_view path) {
+                        if (result == ModalResult::ok)
                         {
                             auto dukValue = ToDuk(_scriptEngine.GetContext(), path);
                             _scriptEngine.ExecutePluginCall(plugin, callback, { dukValue }, false);
@@ -304,7 +311,7 @@ namespace OpenRCT2::Scripting
             auto plugin = _scriptEngine.GetExecInfo().GetCurrentPlugin();
             auto callback = desc["callback"];
 
-            WindowScenarioselectOpen([this, plugin, callback](std::string_view path) {
+            ScenarioselectOpen([this, plugin, callback](std::string_view path) {
                 auto dukValue = GetScenarioFile(path);
                 _scriptEngine.ExecutePluginCall(plugin, callback, { dukValue }, false);
             });
@@ -320,6 +327,7 @@ namespace OpenRCT2::Scripting
             auto& execInfo = _scriptEngine.GetExecInfo();
             auto owner = execInfo.GetCurrentPlugin();
             CustomMenuItems.emplace_back(owner, CustomToolbarMenuItemKind::Standard, text, callback);
+            std::ranges::sort(CustomMenuItems, [](auto&& a, auto&& b) { return a.Text < b.Text; });
         }
 
         void registerToolboxMenuItem(const std::string& text, DukValue callback)
@@ -329,6 +337,7 @@ namespace OpenRCT2::Scripting
             if (owner->GetMetadata().Type == PluginType::Intransient)
             {
                 CustomMenuItems.emplace_back(owner, CustomToolbarMenuItemKind::Toolbox, text, callback);
+                std::ranges::sort(CustomMenuItems, [](auto&& a, auto&& b) { return a.Text < b.Text; });
             }
             else
             {
@@ -391,7 +400,7 @@ namespace OpenRCT2::Scripting
     private:
         WindowClass GetClassification(const std::string& key) const
         {
-            return WindowClass::Null;
+            return WindowClass::null;
         }
 
         DukValue GetScenarioFile(std::string_view path)
@@ -405,7 +414,7 @@ namespace OpenRCT2::Scripting
             if (entry != nullptr)
             {
                 obj.Set("id", entry->ScenarioId);
-                obj.Set("category", ToDuk(ctx, static_cast<SCENARIO_CATEGORY>(entry->Category)));
+                obj.Set("category", ToDuk(ctx, entry->Category));
                 obj.Set("sourceGame", ToDuk(ctx, entry->SourceGame));
                 obj.Set("internalName", entry->InternalName);
                 obj.Set("name", entry->Name);

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,180 +10,197 @@
 #include "RideSetPriceAction.h"
 
 #include "../Cheats.h"
-#include "../common.h"
+#include "../Diagnostic.h"
 #include "../core/MemoryStream.h"
-#include "../interface/Window.h"
-#include "../localisation/Localisation.h"
 #include "../localisation/StringIds.h"
 #include "../management/Finance.h"
 #include "../ride/Ride.h"
 #include "../ride/RideData.h"
+#include "../ride/RideManager.hpp"
 #include "../ride/ShopItem.h"
+#include "../ui/WindowManager.h"
+#include "../world/Map.h"
 #include "../world/Park.h"
 
-RideSetPriceAction::RideSetPriceAction(RideId rideIndex, money64 price, bool primaryPrice)
-    : _rideIndex(rideIndex)
-    , _price(price)
-    , _primaryPrice(primaryPrice)
+namespace OpenRCT2::GameActions
 {
-}
-
-void RideSetPriceAction::AcceptParameters(GameActionParameterVisitor& visitor)
-{
-    visitor.Visit("ride", _rideIndex);
-    visitor.Visit("price", _price);
-    visitor.Visit("isPrimaryPrice", _primaryPrice);
-}
-
-uint16_t RideSetPriceAction::GetActionFlags() const
-{
-    return GameAction::GetActionFlags() | GameActions::Flags::AllowWhilePaused;
-}
-
-void RideSetPriceAction::Serialise(DataSerialiser& stream)
-{
-    GameAction::Serialise(stream);
-
-    stream << DS_TAG(_rideIndex) << DS_TAG(_price) << DS_TAG(_primaryPrice);
-}
-
-GameActions::Result RideSetPriceAction::Query() const
-{
-    GameActions::Result res = GameActions::Result();
-
-    auto ride = GetRide(_rideIndex);
-    if (ride == nullptr)
+    RideSetPriceAction::RideSetPriceAction(RideId rideIndex, money64 price, bool primaryPrice)
+        : _rideIndex(rideIndex)
+        , _price(price)
+        , _primaryPrice(primaryPrice)
     {
-        LOG_WARNING("Invalid game command, ride_id = %u", _rideIndex.ToUnderlying());
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_NONE, STR_NONE);
     }
 
-    const auto* rideEntry = GetRideEntryByIndex(ride->subtype);
-    if (rideEntry == nullptr)
+    void RideSetPriceAction::AcceptParameters(GameActionParameterVisitor& visitor)
     {
-        LOG_WARNING("Invalid game command for ride %u", _rideIndex.ToUnderlying());
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_NONE, STR_NONE);
+        visitor.Visit("ride", _rideIndex);
+        visitor.Visit("price", _price);
+        visitor.Visit("isPrimaryPrice", _primaryPrice);
     }
 
-    return res;
-}
-
-GameActions::Result RideSetPriceAction::Execute() const
-{
-    GameActions::Result res = GameActions::Result();
-    res.Expenditure = ExpenditureType::ParkRideTickets;
-
-    auto ride = GetRide(_rideIndex);
-    if (ride == nullptr)
+    uint16_t RideSetPriceAction::GetActionFlags() const
     {
-        LOG_WARNING("Invalid game command, ride_id = %u", _rideIndex.ToUnderlying());
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_NONE, STR_NONE);
+        return GameAction::GetActionFlags() | Flags::AllowWhilePaused;
     }
 
-    const auto* rideEntry = GetRideEntryByIndex(ride->subtype);
-    if (rideEntry == nullptr)
+    void RideSetPriceAction::Serialise(DataSerialiser& stream)
     {
-        LOG_WARNING("Invalid game command for ride %u", _rideIndex.ToUnderlying());
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_NONE, STR_NONE);
+        GameAction::Serialise(stream);
+
+        stream << DS_TAG(_rideIndex) << DS_TAG(_price) << DS_TAG(_primaryPrice);
     }
 
-    if (!ride->overall_view.IsNull())
+    Result RideSetPriceAction::Query(GameState_t& gameState) const
     {
-        auto location = ride->overall_view.ToTileCentre();
-        res.Position = { location, TileElementHeight(location) };
-    }
-
-    ShopItem shopItem;
-    if (_primaryPrice)
-    {
-        shopItem = ShopItem::Admission;
-
-        const auto& rtd = ride->GetRideTypeDescriptor();
-        if (!rtd.HasFlag(RIDE_TYPE_FLAG_IS_TOILET))
+        auto ride = GetRide(_rideIndex);
+        if (ride == nullptr)
         {
-            shopItem = rideEntry->shop_item[0];
-            if (shopItem == ShopItem::None)
+            LOG_ERROR("Ride not found for rideIndex %u", _rideIndex.ToUnderlying());
+            return Result(Status::InvalidParameters, STR_ERR_INVALID_PARAMETER, STR_ERR_RIDE_NOT_FOUND);
+        }
+
+        const auto* rideEntry = GetRideEntryByIndex(ride->subtype);
+        if (rideEntry == nullptr)
+        {
+            LOG_ERROR("Ride entry not found for ride subtype %u", ride->subtype);
+            return Result(Status::InvalidParameters, STR_ERR_INVALID_PARAMETER, STR_ERR_RIDE_OBJECT_ENTRY_NOT_FOUND);
+        }
+
+        if (_price < kRideMinPrice || _price > kRideMaxPrice)
+        {
+            LOG_ERROR("Attempting to set an invalid price for rideIndex %u", _rideIndex.ToUnderlying());
+            return Result(Status::InvalidParameters, STR_ERR_INVALID_PARAMETER, kStringIdEmpty);
+        }
+
+        return Result();
+    }
+
+    Result RideSetPriceAction::Execute(GameState_t& gameState) const
+    {
+        Result res = Result();
+        res.Expenditure = ExpenditureType::parkRideTickets;
+
+        auto ride = GetRide(_rideIndex);
+        if (ride == nullptr)
+        {
+            LOG_ERROR("Ride not found for rideIndex %u", _rideIndex.ToUnderlying());
+            return Result(Status::InvalidParameters, STR_ERR_INVALID_PARAMETER, STR_ERR_RIDE_NOT_FOUND);
+        }
+
+        const auto* rideEntry = GetRideEntryByIndex(ride->subtype);
+        if (rideEntry == nullptr)
+        {
+            LOG_ERROR("Ride entry not found for ride subtype %u", ride->subtype);
+            return Result(Status::InvalidParameters, STR_ERR_INVALID_PARAMETER, STR_ERR_RIDE_OBJECT_ENTRY_NOT_FOUND);
+        }
+
+        if (_price < kRideMinPrice || _price > kRideMaxPrice)
+        {
+            LOG_ERROR("Attempting to set an invalid price for rideIndex %u", _rideIndex.ToUnderlying());
+            return Result(Status::InvalidParameters, STR_ERR_INVALID_PARAMETER, kStringIdEmpty);
+        }
+
+        if (!ride->overallView.IsNull())
+        {
+            auto location = ride->overallView.ToTileCentre();
+            res.Position = { location, TileElementHeight(location) };
+        }
+
+        auto* windowMgr = Ui::GetWindowManager();
+
+        ShopItem shopItem;
+        if (_primaryPrice)
+        {
+            shopItem = ShopItem::Admission;
+
+            const auto& rtd = ride->getRideTypeDescriptor();
+            if (rtd.specialType != RtdSpecialType::toilet)
+            {
+                shopItem = rideEntry->shop_item[0];
+                if (shopItem == ShopItem::None)
+                {
+                    ride->price[0] = _price;
+                    windowMgr->InvalidateByClass(WindowClass::ride);
+                    return res;
+                }
+            }
+            // Check same price in park flags
+            if (!ShopItemHasCommonPrice(shopItem))
             {
                 ride->price[0] = _price;
-                WindowInvalidateByClass(WindowClass::Ride);
+                windowMgr->InvalidateByClass(WindowClass::ride);
                 return res;
             }
         }
-        // Check same price in park flags
-        if (!ShopItemHasCommonPrice(shopItem))
+        else
         {
-            ride->price[0] = _price;
-            WindowInvalidateByClass(WindowClass::Ride);
-            return res;
-        }
-    }
-    else
-    {
-        shopItem = rideEntry->shop_item[1];
-        if (shopItem == ShopItem::None)
-        {
-            shopItem = ride->GetRideTypeDescriptor().PhotoItem;
-            if ((ride->lifecycle_flags & RIDE_LIFECYCLE_ON_RIDE_PHOTO) == 0)
+            shopItem = rideEntry->shop_item[1];
+            if (shopItem == ShopItem::None)
+            {
+                shopItem = ride->getRideTypeDescriptor().PhotoItem;
+                if ((ride->lifecycleFlags & RIDE_LIFECYCLE_ON_RIDE_PHOTO) == 0)
+                {
+                    ride->price[1] = _price;
+                    windowMgr->InvalidateByClass(WindowClass::ride);
+                    return res;
+                }
+            }
+            // Check same price in park flags
+            if (!ShopItemHasCommonPrice(shopItem))
             {
                 ride->price[1] = _price;
-                WindowInvalidateByClass(WindowClass::Ride);
+                windowMgr->InvalidateByClass(WindowClass::ride);
                 return res;
             }
         }
-        // Check same price in park flags
-        if (!ShopItemHasCommonPrice(shopItem))
-        {
-            ride->price[1] = _price;
-            WindowInvalidateByClass(WindowClass::Ride);
-            return res;
-        }
+
+        // Synchronize prices if enabled.
+        RideSetCommonPrice(gameState, shopItem);
+
+        return res;
     }
 
-    // Synchronize prices if enabled.
-    RideSetCommonPrice(shopItem);
-
-    return res;
-}
-
-void RideSetPriceAction::RideSetCommonPrice(ShopItem shopItem) const
-{
-    for (auto& ride : GetRideManager())
+    void RideSetPriceAction::RideSetCommonPrice(GameState_t& gameState, ShopItem shopItem) const
     {
-        auto invalidate = false;
-        auto rideEntry = GetRideEntryByIndex(ride.subtype);
-        const auto& rtd = ride.GetRideTypeDescriptor();
-        if (rtd.HasFlag(RIDE_TYPE_FLAG_IS_TOILET) && shopItem == ShopItem::Admission)
+        for (auto& ride : RideManager(gameState))
         {
-            if (ride.price[0] != _price)
+            auto invalidate = false;
+            auto rideEntry = GetRideEntryByIndex(ride.subtype);
+            const auto& rtd = ride.getRideTypeDescriptor();
+            if (rtd.specialType == RtdSpecialType::toilet && shopItem == ShopItem::Admission)
             {
-                ride.price[0] = _price;
-                invalidate = true;
-            }
-        }
-        else if (rideEntry != nullptr && rideEntry->shop_item[0] == shopItem)
-        {
-            if (ride.price[0] != _price)
-            {
-                ride.price[0] = _price;
-                invalidate = true;
-            }
-        }
-        if (rideEntry != nullptr)
-        {
-            // If the shop item is the same or an on-ride photo
-            if (rideEntry->shop_item[1] == shopItem
-                || (rideEntry->shop_item[1] == ShopItem::None && GetShopItemDescriptor(shopItem).IsPhoto()))
-            {
-                if (ride.price[1] != _price)
+                if (ride.price[0] != _price)
                 {
-                    ride.price[1] = _price;
+                    ride.price[0] = _price;
                     invalidate = true;
                 }
             }
-        }
-        if (invalidate)
-        {
-            WindowInvalidateByNumber(WindowClass::Ride, ride.id.ToUnderlying());
+            else if (rideEntry != nullptr && rideEntry->shop_item[0] == shopItem)
+            {
+                if (ride.price[0] != _price)
+                {
+                    ride.price[0] = _price;
+                    invalidate = true;
+                }
+            }
+            if (rideEntry != nullptr)
+            {
+                // If the shop item is the same or an on-ride photo
+                if (rideEntry->shop_item[1] == shopItem
+                    || (rideEntry->shop_item[1] == ShopItem::None && GetShopItemDescriptor(shopItem).IsPhoto()))
+                {
+                    if (ride.price[1] != _price)
+                    {
+                        ride.price[1] = _price;
+                        invalidate = true;
+                    }
+                }
+            }
+            if (invalidate)
+            {
+                auto* windowMgr = Ui::GetWindowManager();
+                windowMgr->InvalidateByNumber(WindowClass::ride, ride.id.ToUnderlying());
+            }
         }
     }
-}
+} // namespace OpenRCT2::GameActions

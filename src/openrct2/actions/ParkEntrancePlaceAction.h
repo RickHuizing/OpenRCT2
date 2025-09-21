@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,24 +11,30 @@
 
 #include "GameAction.h"
 
-class ParkEntrancePlaceAction final : public GameActionBase<GameCommand::PlaceParkEntrance>
+namespace OpenRCT2::GameActions
 {
-private:
-    CoordsXYZD _loc;
-    ObjectEntryIndex _pathType;
+    class ParkEntrancePlaceAction final : public GameActionBase<GameCommand::PlaceParkEntrance>
+    {
+    private:
+        CoordsXYZD _loc;
+        ObjectEntryIndex _pathType;
+        ObjectEntryIndex _entranceType;
+        bool _pathTypeIsLegacy;
 
-public:
-    ParkEntrancePlaceAction() = default;
-    ParkEntrancePlaceAction(const CoordsXYZD& location, ObjectEntryIndex pathType);
+    public:
+        ParkEntrancePlaceAction() = default;
+        ParkEntrancePlaceAction(
+            const CoordsXYZD& location, ObjectEntryIndex pathType, ObjectEntryIndex entranceType, bool pathTypeIsLegacy);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    bool CheckMapCapacity(int16_t numTiles) const;
-};
+    private:
+        bool CheckMapCapacity(int16_t numTiles) const;
+    };
+} // namespace OpenRCT2::GameActions

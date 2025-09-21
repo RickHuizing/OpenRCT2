@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,60 +11,64 @@
 
 #include "GameAction.h"
 
-enum class TileModifyType : uint8_t
+namespace OpenRCT2::GameActions
 {
-    AnyRemove,
-    AnySwap,
-    AnyToggleInvisilibity,
-    AnyRotate,
-    AnyPaste,
-    AnySort,
-    AnyBaseHeightOffset,
-    SurfaceShowParkFences,
-    SurfaceToggleCorner,
-    SurfaceToggleDiagonal,
-    PathSetSlope,
-    PathSetBroken,
-    PathToggleEdge,
-    PathSetJunctionRailings,
-    EntranceMakeUsable,
-    WallSetSlope,
-    WallSetAnimationFrame,
-    TrackBaseHeightOffset,
-    TrackSetChain,
-    TrackSetChainBlock,
-    TrackSetBrake,
-    TrackSetIndestructible,
-    ScenerySetQuarterLocation,
-    ScenerySetQuarterCollision,
-    BannerToggleBlockingEdge,
-    Count,
-};
+    enum class TileModifyType : uint8_t
+    {
+        AnyRemove,
+        AnySwap,
+        AnyToggleInvisilibity,
+        AnyRotate,
+        AnyPaste,
+        AnySort,
+        AnyBaseHeightOffset,
+        SurfaceShowParkFences,
+        SurfaceToggleCorner,
+        SurfaceToggleDiagonal,
+        PathSetSlope,
+        PathSetBroken,
+        PathToggleEdge,
+        PathSetJunctionRailings,
+        EntranceMakeUsable,
+        WallSetSlope,
+        WallSetAnimationFrame,
+        TrackBaseHeightOffset,
+        TrackSetChain,
+        TrackSetChainBlock,
+        TrackSetBrake,
+        TrackSetIndestructible,
+        ScenerySetQuarterLocation,
+        ScenerySetQuarterCollision,
+        BannerToggleBlockingEdge,
+        WallSetAnimationIsBackwards,
+        Count,
+    };
 
-class TileModifyAction final : public GameActionBase<GameCommand::ModifyTile>
-{
-private:
-    CoordsXY _loc;
-    TileModifyType _setting{};
-    uint32_t _value1{};
-    uint32_t _value2{};
-    TileElement _pasteElement{};
-    Banner _pasteBanner{};
+    class TileModifyAction final : public GameActionBase<GameCommand::ModifyTile>
+    {
+    private:
+        CoordsXY _loc;
+        TileModifyType _setting{};
+        uint32_t _value1{};
+        uint32_t _value2{};
+        TileElement _pasteElement{};
+        Banner _pasteBanner{};
 
-public:
-    TileModifyAction() = default;
-    TileModifyAction(
-        CoordsXY loc, TileModifyType setting, uint32_t value1 = 0, uint32_t value2 = 0, TileElement pasteElement = {},
-        Banner _pasteBanner = {});
+    public:
+        TileModifyAction() = default;
+        TileModifyAction(
+            CoordsXY loc, TileModifyType setting, uint32_t value1 = 0, uint32_t value2 = 0, TileElement pasteElement = {},
+            Banner _pasteBanner = {});
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    GameActions::Result QueryExecute(bool isExecuting) const;
-};
+    private:
+        Result QueryExecute(bool isExecuting) const;
+    };
+} // namespace OpenRCT2::GameActions

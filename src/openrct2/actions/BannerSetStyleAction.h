@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,32 +11,35 @@
 
 #include "GameAction.h"
 
-// There is also the BannerSetColourAction that sets primary colour but this action takes banner index rather than x, y, z,
-// direction
-enum class BannerSetStyleType : uint8_t
+namespace OpenRCT2::GameActions
 {
-    PrimaryColour,
-    TextColour,
-    NoEntry,
-    Count
-};
+    // There is also the BannerSetColourAction that sets primary colour but this action takes banner index rather than x, y, z,
+    // direction
+    enum class BannerSetStyleType : uint8_t
+    {
+        PrimaryColour,
+        TextColour,
+        NoEntry,
+        Count
+    };
 
-class BannerSetStyleAction final : public GameActionBase<GameCommand::SetBannerStyle>
-{
-private:
-    BannerSetStyleType _type{ BannerSetStyleType::Count };
-    BannerIndex _bannerIndex{ BannerIndex::GetNull() };
-    uint8_t _parameter{};
+    class BannerSetStyleAction final : public GameActionBase<GameCommand::SetBannerStyle>
+    {
+    private:
+        BannerSetStyleType _type{ BannerSetStyleType::Count };
+        BannerIndex _bannerIndex{ BannerIndex::GetNull() };
+        uint8_t _parameter{};
 
-public:
-    BannerSetStyleAction() = default;
-    BannerSetStyleAction(BannerSetStyleType type, BannerIndex bannerIndex, uint8_t parameter);
+    public:
+        BannerSetStyleAction() = default;
+        BannerSetStyleAction(BannerSetStyleType type, BannerIndex bannerIndex, uint8_t parameter);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

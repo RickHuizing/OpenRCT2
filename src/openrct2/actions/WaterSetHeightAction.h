@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,24 +11,27 @@
 
 #include "GameAction.h"
 
-class WaterSetHeightAction final : public GameActionBase<GameCommand::SetWaterHeight>
+namespace OpenRCT2::GameActions
 {
-private:
-    CoordsXY _coords;
-    uint8_t _height{};
+    class WaterSetHeightAction final : public GameActionBase<GameCommand::SetWaterHeight>
+    {
+    private:
+        CoordsXY _coords;
+        uint8_t _height{};
 
-public:
-    WaterSetHeightAction() = default;
-    WaterSetHeightAction(const CoordsXY& coords, uint8_t height);
+    public:
+        WaterSetHeightAction() = default;
+        WaterSetHeightAction(const CoordsXY& coords, uint8_t height);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    StringId CheckParameters() const;
-};
+    private:
+        StringId CheckParameters() const;
+    };
+} // namespace OpenRCT2::GameActions

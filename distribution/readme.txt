@@ -1,5 +1,4 @@
-Last updated:    2023-12-31
-Release version: 0.4.7
+Last updated:    2025-08-04
 ------------------------------------------------------------------------
 
 
@@ -14,7 +13,8 @@ Table of contents
 6.0) Translation
 7.0) Troubleshooting
 8.0) Licensing
-9.0) Credits
+9.0) Privacy policy
+10.0) Credits
 
 1.0) About
 ---- -----
@@ -149,14 +149,21 @@ libpng           | libpng licence.
 libspeex         | BSD-style licence.
 libzip           | BSD 3 clause licence.
 nlohmann-json    | MIT licence.
-OpenSSL          | OpenSSL Licence
+OpenSSL          | OpenSSL licence.
 SDL2             | zlib licence.
 zlib             | zlib licence.
 Google Test      | BSD 3 clause licence.
 Google Benchmark | Apache 2.0 licence.
+sfl              | zlib licence.
+zstd             | BSD 3 clause licence.
+run-clang-format | MIT licence.
 
 Licences for sub-libraries used by the above may vary. For more information, visit the libraries' respective official websites.
 
-9.0) Credits
+9.0) Privacy policy
+
+For privacy policy, see the file 'PRIVACY.md'.
+
+10.0) Credits
 ---- -------
 For the full list of contributors to OpenRCT2, see the file 'contributors.md'.

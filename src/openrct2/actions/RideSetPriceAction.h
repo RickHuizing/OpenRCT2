@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,25 +11,28 @@
 
 #include "GameAction.h"
 
-class RideSetPriceAction final : public GameActionBase<GameCommand::SetRidePrice>
+namespace OpenRCT2::GameActions
 {
-private:
-    RideId _rideIndex{ RideId::GetNull() };
-    money64 _price{ MONEY64_UNDEFINED };
-    bool _primaryPrice{ true };
+    class RideSetPriceAction final : public GameActionBase<GameCommand::SetRidePrice>
+    {
+    private:
+        RideId _rideIndex{ RideId::GetNull() };
+        money64 _price{ kMoney64Undefined };
+        bool _primaryPrice{ true };
 
-public:
-    RideSetPriceAction() = default;
-    RideSetPriceAction(RideId rideIndex, money64 price, bool primaryPrice);
+    public:
+        RideSetPriceAction() = default;
+        RideSetPriceAction(RideId rideIndex, money64 price, bool primaryPrice);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    void RideSetCommonPrice(ShopItem shopItem) const;
-};
+    private:
+        void RideSetCommonPrice(GameState_t& gameState, ShopItem shopItem) const;
+    };
+} // namespace OpenRCT2::GameActions

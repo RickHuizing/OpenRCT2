@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -12,24 +12,51 @@
 #include "ShortcutIds.h"
 
 #include <SDL.h>
+#include <SDL_gamecontroller.h>
+#include <cmath>
 #include <openrct2-ui/UiContext.h>
+#include <openrct2-ui/input/MouseInput.h>
 #include <openrct2-ui/input/ShortcutManager.h>
 #include <openrct2-ui/interface/InGameConsole.h>
-#include <openrct2-ui/windows/Window.h>
+#include <openrct2-ui/interface/Window.h>
+#include <openrct2-ui/windows/Windows.h>
 #include <openrct2/Input.h>
 #include <openrct2/OpenRCT2.h>
 #include <openrct2/config/Config.h>
 #include <openrct2/interface/Chat.h>
+#include <openrct2/interface/Viewport.h>
 #include <openrct2/interface/Window.h>
 #include <openrct2/paint/VirtualFloor.h>
 #include <openrct2/ui/UiContext.h>
+#include <openrct2/ui/WindowManager.h>
 
 using namespace OpenRCT2::Ui;
+
+InputManager::InputManager()
+{
+    _modifierKeyState = EnumValue(ModifierKey::none);
+}
 
 void InputManager::QueueInputEvent(const SDL_Event& e)
 {
     switch (e.type)
     {
+        case SDL_CONTROLLERAXISMOTION:
+        {
+            // Process only the stick axes for scrolling (ignore triggers)
+            if (e.caxis.axis == SDL_CONTROLLER_AXIS_LEFTX || e.caxis.axis == SDL_CONTROLLER_AXIS_LEFTY
+                || e.caxis.axis == SDL_CONTROLLER_AXIS_RIGHTX || e.caxis.axis == SDL_CONTROLLER_AXIS_RIGHTY)
+            {
+                InputEvent ie;
+                ie.DeviceKind = InputDeviceKind::JoyAxis;
+                ie.Modifiers = SDL_GetModState();
+                ie.Button = e.caxis.axis;
+                ie.State = InputEventState::Down;
+                ie.AxisValue = e.caxis.value;
+                QueueInputEvent(std::move(ie));
+            }
+            break;
+        }
         case SDL_JOYHATMOTION:
         {
             if (e.jhat.value != SDL_HAT_CENTERED)
@@ -39,28 +66,42 @@ void InputManager::QueueInputEvent(const SDL_Event& e)
                 ie.Modifiers = SDL_GetModState();
                 ie.Button = e.jhat.value;
                 ie.State = InputEventState::Down;
+                ie.AxisValue = 0;
                 QueueInputEvent(std::move(ie));
             }
             break;
         }
+        case SDL_CONTROLLERBUTTONDOWN:
         case SDL_JOYBUTTONDOWN:
         {
             InputEvent ie;
             ie.DeviceKind = InputDeviceKind::JoyButton;
             ie.Modifiers = SDL_GetModState();
-            ie.Button = e.jbutton.button;
+            ie.Button = e.cbutton.button;
             ie.State = InputEventState::Down;
+            ie.AxisValue = 0;
             QueueInputEvent(std::move(ie));
             break;
         }
+        case SDL_CONTROLLERBUTTONUP:
         case SDL_JOYBUTTONUP:
         {
             InputEvent ie;
             ie.DeviceKind = InputDeviceKind::JoyButton;
             ie.Modifiers = SDL_GetModState();
-            ie.Button = e.jbutton.button;
+            ie.Button = e.cbutton.button;
             ie.State = InputEventState::Release;
+            ie.AxisValue = 0;
             QueueInputEvent(std::move(ie));
+            break;
+        }
+        case SDL_CONTROLLERDEVICEADDED:
+        case SDL_CONTROLLERDEVICEREMOVED:
+        case SDL_JOYDEVICEADDED:
+        case SDL_JOYDEVICEREMOVED:
+        {
+            // Force joystick refresh on next check
+            _lastJoystickCheck = 0;
             break;
         }
     }
@@ -73,29 +114,93 @@ void InputManager::QueueInputEvent(InputEvent&& e)
 
 void InputManager::CheckJoysticks()
 {
-    constexpr uint32_t CHECK_INTERVAL_MS = 5000;
+    constexpr uint32_t kCheckInternalMs = 5000;
 
     auto tick = SDL_GetTicks();
-    if (tick > _lastJoystickCheck + CHECK_INTERVAL_MS)
+    if (tick > _lastJoystickCheck + kCheckInternalMs)
     {
         _lastJoystickCheck = tick;
 
-        _joysticks.clear();
+        _gameControllers.clear();
         auto numJoysticks = SDL_NumJoysticks();
         for (auto i = 0; i < numJoysticks; i++)
         {
-            auto joystick = SDL_JoystickOpen(i);
-            if (joystick != nullptr)
+            if (SDL_IsGameController(i))
             {
-                _joysticks.push_back(joystick);
+                auto gameController = SDL_GameControllerOpen(i);
+                if (gameController != nullptr)
+                {
+                    _gameControllers.push_back(gameController);
+                }
             }
         }
     }
 }
 
+void InputManager::processAnalogueInput()
+{
+    _analogueScroll.x = 0;
+    _analogueScroll.y = 0;
+
+    const int32_t deadzone = Config::Get().general.gamepadDeadzone;
+    const float sensitivity = Config::Get().general.gamepadSensitivity;
+
+    for (auto* gameController : _gameControllers)
+    {
+        if (gameController != nullptr)
+        {
+            int32_t stickX = SDL_GameControllerGetAxis(gameController, SDL_CONTROLLER_AXIS_LEFTX);
+            int32_t stickY = SDL_GameControllerGetAxis(gameController, SDL_CONTROLLER_AXIS_LEFTY);
+
+            // Calculate the magnitude of the stick input vector
+            float magnitude = std::sqrt(static_cast<float>(stickX * stickX + stickY * stickY));
+
+            if (magnitude > deadzone)
+            {
+                // Apply deadzone to the magnitude, creating a more linear response
+                float adjustedMagnitude = (magnitude - deadzone) / (32767.0f - deadzone);
+                adjustedMagnitude = std::min(adjustedMagnitude, 1.0f);
+
+                float rawX = (stickX / 32767.0f) * adjustedMagnitude;
+                float rawY = (stickY / 32767.0f) * adjustedMagnitude;
+
+                // Use a quadratic curve for better fine control at low sensitivities
+                float sensitivityCurve = sensitivity * sensitivity;
+                float moveX = rawX * sensitivityCurve * 8.0f; // Reasonable base scale
+                float moveY = rawY * sensitivityCurve * 8.0f;
+
+                // Accumulate the movement with fractional precision
+                _analogueScrollAccumX += moveX;
+                _analogueScrollAccumY += moveY;
+
+                // Extract integer movement for this frame
+                float intPartX, intPartY;
+                float fracX = std::modf(_analogueScrollAccumX, &intPartX);
+                float fracY = std::modf(_analogueScrollAccumY, &intPartY);
+
+                int pixelsX = static_cast<int>(intPartX);
+                int pixelsY = static_cast<int>(intPartY);
+
+                _analogueScrollAccumX = fracX;
+                _analogueScrollAccumY = fracY;
+
+                _analogueScroll.x += pixelsX;
+                _analogueScroll.y += pixelsY;
+            }
+        }
+    }
+}
+
+void InputManager::updateAnalogueScroll()
+{
+    _viewScroll.x += _analogueScroll.x;
+    _viewScroll.y += _analogueScroll.y;
+}
+
 void InputManager::Process()
 {
     CheckJoysticks();
+    processAnalogueInput();
     HandleModifiers();
     ProcessEvents();
     ProcessHoldEvents();
@@ -104,28 +209,66 @@ void InputManager::Process()
 
 void InputManager::HandleViewScrolling()
 {
-    if (gScreenFlags & SCREEN_FLAGS_TITLE_DEMO)
+    if (gLegacyScene == LegacyScene::titleSequence)
         return;
 
     auto& console = GetInGameConsole();
     if (console.IsOpen())
         return;
 
-    // Shortcut scrolling
     auto mainWindow = WindowGetMain();
-    if (mainWindow != nullptr && (_viewScroll.x != 0 || _viewScroll.y != 0))
+
+    // Handle gamepad analogue scrolling with cursor-based viewport targeting
+    if (_analogueScroll.x != 0 || _analogueScroll.y != 0)
     {
-        WindowUnfollowSprite(*mainWindow);
+        // Get cursor position to find target viewport
+        const CursorState* cursorState = ContextGetCursorState();
+        Viewport* targetViewport = ViewportFindFromPoint(cursorState->position);
+
+        WindowBase* targetWindow = nullptr;
+        if (targetViewport != nullptr)
+        {
+            // Find the window that owns this viewport
+            auto* windowMgr = GetWindowManager();
+            targetWindow = windowMgr->GetOwner(targetViewport);
+        }
+
+        // Fallback to main window if no viewport found under cursor
+        if (targetWindow == nullptr)
+        {
+            targetWindow = mainWindow;
+        }
+
+        if (targetWindow != nullptr)
+        {
+            // Only unfollow sprites for the main window or viewport windows
+            // Don't unfollow for ride windows that might be following vehicles
+            if (targetWindow == mainWindow || targetWindow->classification == WindowClass::viewport)
+            {
+                WindowUnfollowSprite(*targetWindow);
+            }
+            InputScrollViewportSmooth(_analogueScroll, targetWindow);
+        }
     }
-    InputScrollViewport(_viewScroll);
+
+    // Handle keyboard shortcut scrolling with edge-based scrolling (but ignore gamepad input)
+    ScreenCoordsXY keyboardScroll = { _viewScroll.x - _analogueScroll.x, _viewScroll.y - _analogueScroll.y };
+    if (keyboardScroll.x != 0 || keyboardScroll.y != 0)
+    {
+        if (mainWindow != nullptr)
+        {
+            WindowUnfollowSprite(*mainWindow);
+        }
+        InputScrollViewport(keyboardScroll);
+    }
 
     // Mouse edge scrolling
-    if (gConfigGeneral.EdgeScrolling)
+    if (Config::Get().general.EdgeScrolling)
     {
         if (InputGetState() != InputState::Normal)
             return;
 
-        if (gInputPlaceObjectModifier & (PLACE_OBJECT_MODIFIER_SHIFT_Z | PLACE_OBJECT_MODIFIER_COPY_Z))
+        if (IsModifierKeyPressed(ModifierKey::shift) || IsModifierKeyPressed(ModifierKey::ctrl))
             return;
 
         GameHandleEdgeScroll();
@@ -134,34 +277,40 @@ void InputManager::HandleViewScrolling()
 
 void InputManager::HandleModifiers()
 {
+    _modifierKeyState = EnumValue(ModifierKey::none);
+
     auto modifiers = SDL_GetModState();
-    gInputPlaceObjectModifier = PLACE_OBJECT_MODIFIER_NONE;
     if (modifiers & KMOD_SHIFT)
     {
-        gInputPlaceObjectModifier |= PLACE_OBJECT_MODIFIER_SHIFT_Z;
+        _modifierKeyState |= EnumValue(ModifierKey::shift);
     }
     if (modifiers & KMOD_CTRL)
     {
-        gInputPlaceObjectModifier |= PLACE_OBJECT_MODIFIER_COPY_Z;
+        _modifierKeyState |= EnumValue(ModifierKey::ctrl);
     }
     if (modifiers & KMOD_ALT)
     {
-        gInputPlaceObjectModifier |= 4;
+        _modifierKeyState |= EnumValue(ModifierKey::alt);
     }
 #ifdef __MACOSX__
     if (modifiers & KMOD_GUI)
     {
-        gInputPlaceObjectModifier |= 8;
+        _modifierKeyState |= EnumValue(ModifierKey::cmd);
     }
 #endif
 
-    if (gConfigGeneral.VirtualFloorStyle != VirtualFloorStyles::Off)
+    if (Config::Get().general.VirtualFloorStyle != VirtualFloorStyles::Off)
     {
-        if (gInputPlaceObjectModifier & (PLACE_OBJECT_MODIFIER_COPY_Z | PLACE_OBJECT_MODIFIER_SHIFT_Z))
+        if (IsModifierKeyPressed(ModifierKey::ctrl) || IsModifierKeyPressed(ModifierKey::shift))
             VirtualFloorEnable();
         else
             VirtualFloorDisable();
     }
+}
+
+bool InputManager::IsModifierKeyPressed(ModifierKey modifier) const
+{
+    return _modifierKeyState & EnumValue(modifier);
 }
 
 void InputManager::ProcessEvents()
@@ -182,7 +331,7 @@ void InputManager::Process(const InputEvent& e)
         auto& console = GetInGameConsole();
         if (console.IsOpen())
         {
-            if (!shortcutManager.ProcessEventForSpecificShortcut(e, ShortcutId::DebugToggleConsole))
+            if (!shortcutManager.ProcessEventForSpecificShortcut(e, ShortcutId::kDebugToggleConsole))
             {
                 ProcessInGameConsole(e);
             }
@@ -197,17 +346,42 @@ void InputManager::Process(const InputEvent& e)
 
         if (e.DeviceKind == InputDeviceKind::Keyboard)
         {
-            auto w = WindowFindByClass(WindowClass::Textinput);
+            auto* windowMgr = GetWindowManager();
+
+            // TODO: replace with event
+            auto w = windowMgr->FindByClass(WindowClass::textinput);
             if (w != nullptr)
             {
                 if (e.State == InputEventState::Release)
                 {
-                    WindowTextInputKey(w, e.Button);
+                    OpenRCT2::Ui::Windows::WindowTextInputKey(w, e.Button);
                 }
                 return;
             }
 
-            if (gUsingWidgetTextBox)
+            // TODO: replace with event
+            w = windowMgr->FindByClass(WindowClass::loadsaveOverwritePrompt);
+            if (w != nullptr)
+            {
+                if (e.State == InputEventState::Release)
+                {
+                    OpenRCT2::Ui::Windows::WindowLoadSaveOverwritePromptInputKey(w, e.Button);
+                }
+                return;
+            }
+
+            // TODO: replace with event
+            w = windowMgr->FindByClass(WindowClass::loadsave);
+            if (w != nullptr)
+            {
+                if (e.State == InputEventState::Release)
+                {
+                    OpenRCT2::Ui::Windows::WindowLoadSaveInputKey(w, e.Button);
+                }
+                return;
+            }
+
+            if (OpenRCT2::Ui::Windows::IsUsingWidgetTextBox())
             {
                 return;
             }
@@ -293,11 +467,13 @@ void InputManager::ProcessHoldEvents()
         auto& shortcutManager = GetShortcutManager();
         if (!shortcutManager.IsPendingShortcutChange())
         {
-            ProcessViewScrollEvent(ShortcutId::ViewScrollUp, { 0, -1 });
-            ProcessViewScrollEvent(ShortcutId::ViewScrollDown, { 0, 1 });
-            ProcessViewScrollEvent(ShortcutId::ViewScrollLeft, { -1, 0 });
-            ProcessViewScrollEvent(ShortcutId::ViewScrollRight, { 1, 0 });
+            ProcessViewScrollEvent(ShortcutId::kViewScrollUp, { 0, -1 });
+            ProcessViewScrollEvent(ShortcutId::kViewScrollDown, { 0, 1 });
+            ProcessViewScrollEvent(ShortcutId::kViewScrollLeft, { -1, 0 });
+            ProcessViewScrollEvent(ShortcutId::kViewScrollRight, { 1, 0 });
         }
+
+        updateAnalogueScroll();
     }
 }
 
@@ -326,9 +502,9 @@ bool InputManager::GetState(const RegisteredShortcut& shortcut) const
 
 bool InputManager::GetState(const ShortcutInput& shortcut) const
 {
-    constexpr uint32_t UsefulModifiers = KMOD_SHIFT | KMOD_CTRL | KMOD_ALT | KMOD_GUI;
-    auto modifiers = SDL_GetModState() & UsefulModifiers;
-    if ((shortcut.Modifiers & UsefulModifiers) == modifiers)
+    constexpr uint32_t kUsefulModifiers = KMOD_SHIFT | KMOD_CTRL | KMOD_ALT | KMOD_GUI;
+    auto modifiers = SDL_GetModState() & kUsefulModifiers;
+    if ((shortcut.Modifiers & kUsefulModifiers) == modifiers)
     {
         switch (shortcut.Kind)
         {
@@ -351,9 +527,11 @@ bool InputManager::GetState(const ShortcutInput& shortcut) const
             }
             case InputDeviceKind::JoyButton:
             {
-                for (auto* joystick : _joysticks)
+                for (auto* gameController : _gameControllers)
                 {
-                    if (SDL_JoystickGetButton(joystick, shortcut.Button))
+                    // Get the underlying joystick to maintain compatibility with raw button numbers
+                    auto* joystick = SDL_GameControllerGetJoystick(gameController);
+                    if (joystick && SDL_JoystickGetButton(joystick, shortcut.Button))
                     {
                         return true;
                     }
@@ -362,19 +540,30 @@ bool InputManager::GetState(const ShortcutInput& shortcut) const
             }
             case InputDeviceKind::JoyHat:
             {
-                for (auto* joystick : _joysticks)
+                for (auto* gameController : _gameControllers)
                 {
-                    auto numHats = SDL_JoystickNumHats(joystick);
-                    for (int i = 0; i < numHats; i++)
+                    // Get the underlying joystick to maintain compatibility with hat functionality
+                    auto* joystick = SDL_GameControllerGetJoystick(gameController);
+                    if (joystick)
                     {
-                        auto hat = SDL_JoystickGetHat(joystick, i);
-                        if (hat & shortcut.Button)
+                        auto numHats = SDL_JoystickNumHats(joystick);
+                        for (int i = 0; i < numHats; i++)
                         {
-                            return true;
+                            auto hat = SDL_JoystickGetHat(joystick, i);
+                            if (hat & shortcut.Button)
+                            {
+                                return true;
+                            }
                         }
                     }
                 }
                 break;
+            }
+            case InputDeviceKind::JoyAxis:
+            {
+                // analogue axes don't have a simple "pressed" state like buttons
+                // Return false for shortcuts on analogue axes as they're handled differently
+                return false;
             }
         }
     }
@@ -383,10 +572,11 @@ bool InputManager::GetState(const ShortcutInput& shortcut) const
 
 bool InputManager::HasTextInputFocus() const
 {
-    if (gUsingWidgetTextBox || gChatOpen)
+    if (OpenRCT2::Ui::Windows::IsUsingWidgetTextBox() || gChatOpen)
         return true;
 
-    auto w = WindowFindByClass(WindowClass::Textinput);
+    auto* windowMgr = GetWindowManager();
+    auto w = windowMgr->FindByClass(WindowClass::textinput);
     if (w != nullptr)
         return true;
 

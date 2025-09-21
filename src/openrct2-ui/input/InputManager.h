@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -13,7 +13,7 @@
 #include <queue>
 #include <string_view>
 
-typedef struct _SDL_Joystick SDL_Joystick;
+typedef struct _SDL_GameController SDL_GameController;
 typedef union SDL_Event SDL_Event;
 
 namespace OpenRCT2::Ui
@@ -27,6 +27,7 @@ namespace OpenRCT2::Ui
         Keyboard,
         JoyButton,
         JoyHat,
+        JoyAxis,
     };
 
     enum class InputEventState
@@ -41,19 +42,35 @@ namespace OpenRCT2::Ui
         uint32_t Modifiers;
         uint32_t Button;
         InputEventState State;
+        int16_t AxisValue; // For analogue stick values (-32768 to 32767)
+    };
+
+    enum class ModifierKey : uint8_t
+    {
+        none = 0,
+        shift = 1 << 0,
+        ctrl = 1 << 1,
+        alt = 1 << 2,
+        cmd = 1 << 3,
     };
 
     class InputManager
     {
     private:
         uint32_t _lastJoystickCheck{};
-        std::vector<SDL_Joystick*> _joysticks;
+        std::vector<SDL_GameController*> _gameControllers;
         std::queue<InputEvent> _events;
         ScreenCoordsXY _viewScroll;
+        ScreenCoordsXY _analogueScroll;     // analogue stick scroll values
+        float _analogueScrollAccumX = 0.0f; // Fractional accumulator for X axis
+        float _analogueScrollAccumY = 0.0f; // Fractional accumulator for Y axis
         uint32_t _mouseState{};
         std::vector<uint8_t> _keyboardState;
+        uint8_t _modifierKeyState;
 
         void CheckJoysticks();
+        void processAnalogueInput();
+        void updateAnalogueScroll();
 
         void HandleViewScrolling();
         void HandleModifiers();
@@ -70,6 +87,9 @@ namespace OpenRCT2::Ui
         bool HasTextInputFocus() const;
 
     public:
+        InputManager();
+
+        bool IsModifierKeyPressed(ModifierKey modifier) const;
         void QueueInputEvent(const SDL_Event& e);
         void QueueInputEvent(InputEvent&& e);
         void Process();

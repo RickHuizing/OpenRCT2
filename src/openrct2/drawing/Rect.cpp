@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -7,7 +7,6 @@
  * OpenRCT2 is licensed under the GNU General Public License version 3.
  *****************************************************************************/
 
-#include "../common.h"
 #include "../interface/Colour.h"
 #include "../world/Location.hpp"
 #include "Drawing.h"
@@ -24,54 +23,44 @@
  * colour (ebp)
  * flags (si)
  */
-void GfxFillRectInset(DrawPixelInfo& dpi, const ScreenRect& rect, int32_t colour, uint8_t flags)
+void GfxFillRectInset(RenderTarget& rt, const ScreenRect& rect, ColourWithFlags colour, uint8_t flags)
 {
     const auto leftTop = ScreenCoordsXY{ rect.GetLeft(), rect.GetTop() };
     const auto leftBottom = ScreenCoordsXY{ rect.GetLeft(), rect.GetBottom() };
     const auto rightTop = ScreenCoordsXY{ rect.GetRight(), rect.GetTop() };
     const auto rightBottom = ScreenCoordsXY{ rect.GetRight(), rect.GetBottom() };
-    if (colour & (COLOUR_FLAG_TRANSLUCENT | COLOUR_FLAG_8))
+    if (colour.hasFlag(ColourFlag::translucent))
     {
-        TranslucentWindowPalette palette;
-        if (colour & COLOUR_FLAG_8)
-        {
-            // TODO: This can't be added up
-            // palette = NOT_TRANSLUCENT(colour);
-            assert(false);
-            return;
-        }
-
-        palette = TranslucentWindowPalettes[BASE_COLOUR(colour)];
+        auto palette = TranslucentWindowPalettes[colour.colour];
 
         if (flags & INSET_RECT_FLAG_BORDER_NONE)
         {
-            GfxFilterRect(dpi, rect, palette.base);
+            GfxFilterRect(rt, rect, palette.base);
         }
         else if (flags & INSET_RECT_FLAG_BORDER_INSET)
         {
             // Draw outline of box
-            GfxFilterRect(dpi, { leftTop, leftBottom }, palette.highlight);
-            GfxFilterRect(dpi, { leftTop, rightTop }, palette.highlight);
-            GfxFilterRect(dpi, { rightTop, rightBottom }, palette.shadow);
-            GfxFilterRect(dpi, { leftBottom, rightBottom }, palette.shadow);
+            GfxFilterRect(rt, { leftTop, leftBottom }, palette.highlight);
+            GfxFilterRect(rt, { leftTop, rightTop }, palette.highlight);
+            GfxFilterRect(rt, { rightTop, rightBottom }, palette.shadow);
+            GfxFilterRect(rt, { leftBottom, rightBottom }, palette.shadow);
 
             if (!(flags & INSET_RECT_FLAG_FILL_NONE))
             {
-                GfxFilterRect(dpi, { leftTop + ScreenCoordsXY{ 1, 1 }, rightBottom - ScreenCoordsXY{ 1, 1 } }, palette.base);
+                GfxFilterRect(rt, { leftTop + ScreenCoordsXY{ 1, 1 }, rightBottom - ScreenCoordsXY{ 1, 1 } }, palette.base);
             }
         }
         else
         {
             // Draw outline of box
-            GfxFilterRect(dpi, { leftTop, leftBottom }, palette.shadow);
-            GfxFilterRect(dpi, { leftTop, rightTop }, palette.shadow);
-            GfxFilterRect(dpi, { rightTop, rightBottom }, palette.highlight);
-            GfxFilterRect(dpi, { leftBottom, rightBottom }, palette.highlight);
+            GfxFilterRect(rt, { leftTop, leftBottom }, palette.shadow);
+            GfxFilterRect(rt, { leftTop, rightTop }, palette.shadow);
+            GfxFilterRect(rt, { rightTop, rightBottom }, palette.highlight);
+            GfxFilterRect(rt, { leftBottom, rightBottom }, palette.highlight);
 
             if (!(flags & INSET_RECT_FLAG_FILL_NONE))
             {
-                GfxFilterRect(
-                    dpi, { leftTop + ScreenCoordsXY{ 1, 1 }, { rightBottom - ScreenCoordsXY{ 1, 1 } } }, palette.base);
+                GfxFilterRect(rt, { leftTop + ScreenCoordsXY{ 1, 1 }, { rightBottom - ScreenCoordsXY{ 1, 1 } } }, palette.base);
             }
         }
     }
@@ -80,28 +69,28 @@ void GfxFillRectInset(DrawPixelInfo& dpi, const ScreenRect& rect, int32_t colour
         uint8_t shadow, fill, hilight;
         if (flags & INSET_RECT_FLAG_FILL_MID_LIGHT)
         {
-            shadow = ColourMapA[colour].dark;
-            fill = ColourMapA[colour].mid_light;
-            hilight = ColourMapA[colour].lighter;
+            shadow = ColourMapA[colour.colour].dark;
+            fill = ColourMapA[colour.colour].mid_light;
+            hilight = ColourMapA[colour.colour].lighter;
         }
         else
         {
-            shadow = ColourMapA[colour].mid_dark;
-            fill = ColourMapA[colour].light;
-            hilight = ColourMapA[colour].lighter;
+            shadow = ColourMapA[colour.colour].mid_dark;
+            fill = ColourMapA[colour.colour].light;
+            hilight = ColourMapA[colour.colour].lighter;
         }
 
         if (flags & INSET_RECT_FLAG_BORDER_NONE)
         {
-            GfxFillRect(dpi, rect, fill);
+            GfxFillRect(rt, rect, fill);
         }
         else if (flags & INSET_RECT_FLAG_BORDER_INSET)
         {
             // Draw outline of box
-            GfxFillRect(dpi, { leftTop, leftBottom }, shadow);
-            GfxFillRect(dpi, { leftTop + ScreenCoordsXY{ 1, 0 }, rightTop }, shadow);
-            GfxFillRect(dpi, { rightTop + ScreenCoordsXY{ 0, 1 }, rightBottom - ScreenCoordsXY{ 0, 1 } }, hilight);
-            GfxFillRect(dpi, { leftBottom + ScreenCoordsXY{ 1, 0 }, rightBottom }, hilight);
+            GfxFillRect(rt, { leftTop, leftBottom }, shadow);
+            GfxFillRect(rt, { leftTop + ScreenCoordsXY{ 1, 0 }, rightTop }, shadow);
+            GfxFillRect(rt, { rightTop + ScreenCoordsXY{ 0, 1 }, rightBottom - ScreenCoordsXY{ 0, 1 } }, hilight);
+            GfxFillRect(rt, { leftBottom + ScreenCoordsXY{ 1, 0 }, rightBottom }, hilight);
 
             if (!(flags & INSET_RECT_FLAG_FILL_NONE))
             {
@@ -113,19 +102,19 @@ void GfxFillRectInset(DrawPixelInfo& dpi, const ScreenRect& rect, int32_t colour
                     }
                     else
                     {
-                        fill = ColourMapA[colour].lighter;
+                        fill = ColourMapA[colour.colour].lighter;
                     }
                 }
-                GfxFillRect(dpi, { leftTop + ScreenCoordsXY{ 1, 1 }, rightBottom - ScreenCoordsXY{ 1, 1 } }, fill);
+                GfxFillRect(rt, { leftTop + ScreenCoordsXY{ 1, 1 }, rightBottom - ScreenCoordsXY{ 1, 1 } }, fill);
             }
         }
         else
         {
             // Draw outline of box
-            GfxFillRect(dpi, { leftTop, leftBottom - ScreenCoordsXY{ 0, 1 } }, hilight);
-            GfxFillRect(dpi, { leftTop + ScreenCoordsXY{ 1, 0 }, rightTop - ScreenCoordsXY{ 1, 0 } }, hilight);
-            GfxFillRect(dpi, { rightTop, rightBottom - ScreenCoordsXY{ 0, 1 } }, shadow);
-            GfxFillRect(dpi, { leftBottom, rightBottom }, shadow);
+            GfxFillRect(rt, { leftTop, leftBottom - ScreenCoordsXY{ 0, 1 } }, hilight);
+            GfxFillRect(rt, { leftTop + ScreenCoordsXY{ 1, 0 }, rightTop - ScreenCoordsXY{ 1, 0 } }, hilight);
+            GfxFillRect(rt, { rightTop, rightBottom - ScreenCoordsXY{ 0, 1 } }, shadow);
+            GfxFillRect(rt, { leftBottom, rightBottom }, shadow);
 
             if (!(flags & INSET_RECT_FLAG_FILL_NONE))
             {
@@ -133,7 +122,7 @@ void GfxFillRectInset(DrawPixelInfo& dpi, const ScreenRect& rect, int32_t colour
                 {
                     fill = ColourMapA[COLOUR_BLACK].light;
                 }
-                GfxFillRect(dpi, { leftTop + ScreenCoordsXY{ 1, 1 }, rightBottom - ScreenCoordsXY{ 1, 1 } }, fill);
+                GfxFillRect(rt, { leftTop + ScreenCoordsXY{ 1, 1 }, rightBottom - ScreenCoordsXY{ 1, 1 } }, fill);
             }
         }
     }

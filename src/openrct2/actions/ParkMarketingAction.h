@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,26 +11,29 @@
 
 #include "GameAction.h"
 
-class ParkMarketingAction final : public GameActionBase<GameCommand::StartMarketingCampaign>
+namespace OpenRCT2::GameActions
 {
-private:
-    int32_t _type{};
-    int32_t _item{};
-    int32_t _numWeeks{};
+    class ParkMarketingAction final : public GameActionBase<GameCommand::StartMarketingCampaign>
+    {
+    private:
+        int32_t _type{};
+        int32_t _item{};
+        int32_t _numWeeks{};
 
-public:
-    ParkMarketingAction() = default;
-    ParkMarketingAction(int32_t type, int32_t item, int32_t numWeeks);
+    public:
+        ParkMarketingAction() = default;
+        ParkMarketingAction(int32_t type, int32_t item, int32_t numWeeks);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    GameActions::Result CreateResult() const;
-    money64 CalculatePrice() const;
-};
+    private:
+        Result CreateResult() const;
+        money64 CalculatePrice() const;
+    };
+} // namespace OpenRCT2::GameActions

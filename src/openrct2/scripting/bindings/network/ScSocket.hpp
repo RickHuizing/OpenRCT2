@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -10,17 +10,16 @@
 #pragma once
 
 #ifdef ENABLE_SCRIPTING
-#    ifndef DISABLE_NETWORK
+    #ifndef DISABLE_NETWORK
 
-#        include "../../../Context.h"
-#        include "../../../config/Config.h"
-#        include "../../../network/Socket.h"
-#        include "../../Duktape.hpp"
-#        include "../../ScriptEngine.h"
+        #include "../../../Context.h"
+        #include "../../../config/Config.h"
+        #include "../../../network/Socket.h"
+        #include "../../Duktape.hpp"
+        #include "../../ScriptEngine.h"
 
-#        include <algorithm>
-#        include <memory>
-#        include <vector>
+        #include <memory>
+        #include <vector>
 
 namespace OpenRCT2::Scripting
 {
@@ -90,15 +89,16 @@ namespace OpenRCT2::Scripting
             constexpr char delimiter = ',';
             size_t start_pos = 0;
             size_t end_pos = 0;
-            while ((end_pos = gConfigPlugin.AllowedHosts.find(delimiter, start_pos)) != std::string::npos)
+            while ((end_pos = Config::Get().plugin.AllowedHosts.find(delimiter, start_pos)) != std::string::npos)
             {
-                if (host == gConfigPlugin.AllowedHosts.substr(start_pos, end_pos - start_pos))
+                if (host == Config::Get().plugin.AllowedHosts.substr(start_pos, end_pos - start_pos))
                 {
                     return true;
                 }
                 start_pos = end_pos + 1;
             }
-            return host == gConfigPlugin.AllowedHosts.substr(start_pos, gConfigPlugin.AllowedHosts.length() - start_pos);
+            return host
+                == Config::Get().plugin.AllowedHosts.substr(start_pos, Config::Get().plugin.AllowedHosts.length() - start_pos);
         }
 
     public:
@@ -136,7 +136,7 @@ namespace OpenRCT2::Scripting
         static constexpr uint32_t EVENT_ERROR = 3;
 
         EventList _eventList;
-        std::unique_ptr<ITcpSocket> _socket;
+        std::unique_ptr<Network::ITcpSocket> _socket;
         bool _disposed{};
         bool _connecting{};
         bool _wasConnected{};
@@ -147,7 +147,7 @@ namespace OpenRCT2::Scripting
         {
         }
 
-        ScSocket(const std::shared_ptr<Plugin>& plugin, std::unique_ptr<ITcpSocket>&& socket)
+        ScSocket(const std::shared_ptr<Plugin>& plugin, std::unique_ptr<Network::ITcpSocket>&& socket)
             : ScSocketBase(plugin)
             , _socket(std::move(socket))
         {
@@ -190,7 +190,7 @@ namespace OpenRCT2::Scripting
             }
             else
             {
-                _socket = CreateTcpSocket();
+                _socket = Network::CreateTcpSocket();
                 try
                 {
                     _socket->ConnectAsync(host, port);
@@ -320,14 +320,14 @@ namespace OpenRCT2::Scripting
                 auto status = _socket->GetStatus();
                 if (_connecting)
                 {
-                    if (status == SocketStatus::Connected)
+                    if (status == Network::SocketStatus::connected)
                     {
                         _connecting = false;
                         _wasConnected = true;
                         _eventList.Raise(EVENT_CONNECT_ONCE, GetPlugin(), {}, false);
                         _eventList.RemoveAllListeners(EVENT_CONNECT_ONCE);
                     }
-                    else if (status == SocketStatus::Closed)
+                    else if (status == Network::SocketStatus::closed)
                     {
                         _connecting = false;
 
@@ -342,21 +342,21 @@ namespace OpenRCT2::Scripting
                         _eventList.Raise(EVENT_ERROR, GetPlugin(), { dukErr }, true);
                     }
                 }
-                else if (status == SocketStatus::Connected)
+                else if (status == Network::SocketStatus::connected)
                 {
-                    char buffer[2048];
+                    char buffer[16384];
                     size_t bytesRead{};
                     auto result = _socket->ReceiveData(buffer, sizeof(buffer), &bytesRead);
                     switch (result)
                     {
-                        case NetworkReadPacket::Success:
+                        case Network::ReadPacket::success:
                             RaiseOnData(std::string(buffer, bytesRead));
                             break;
-                        case NetworkReadPacket::NoData:
+                        case Network::ReadPacket::noData:
                             break;
-                        case NetworkReadPacket::MoreData:
+                        case Network::ReadPacket::moreData:
                             break;
-                        case NetworkReadPacket::Disconnected:
+                        case Network::ReadPacket::disconnected:
                             CloseSocket();
                             break;
                     }
@@ -398,7 +398,7 @@ namespace OpenRCT2::Scripting
         static constexpr uint32_t EVENT_CONNECTION = 0;
 
         EventList _eventList;
-        std::unique_ptr<ITcpSocket> _socket;
+        std::unique_ptr<Network::ITcpSocket> _socket;
         std::vector<std::shared_ptr<ScSocket>> _scClientSockets;
         bool _disposed{};
 
@@ -406,7 +406,7 @@ namespace OpenRCT2::Scripting
         {
             if (_socket != nullptr)
             {
-                return _socket->GetStatus() == SocketStatus::Listening;
+                return _socket->GetStatus() == Network::SocketStatus::listening;
             }
             return false;
         }
@@ -428,10 +428,10 @@ namespace OpenRCT2::Scripting
             {
                 if (_socket == nullptr)
                 {
-                    _socket = CreateTcpSocket();
+                    _socket = Network::CreateTcpSocket();
                 }
 
-                if (_socket->GetStatus() == SocketStatus::Listening)
+                if (_socket->GetStatus() == Network::SocketStatus::listening)
                 {
                     duk_error(ctx, DUK_ERR_ERROR, "Server is already listening.");
                 }
@@ -506,7 +506,7 @@ namespace OpenRCT2::Scripting
             if (_socket == nullptr)
                 return;
 
-            if (_socket->GetStatus() == SocketStatus::Listening)
+            if (_socket->GetStatus() == Network::SocketStatus::listening)
             {
                 auto client = _socket->Accept();
                 if (client != nullptr)
@@ -556,5 +556,5 @@ namespace OpenRCT2::Scripting
     };
 } // namespace OpenRCT2::Scripting
 
-#    endif
+    #endif
 #endif

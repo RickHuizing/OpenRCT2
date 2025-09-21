@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,24 +11,27 @@
 
 #include "GameAction.h"
 
-class LargeSceneryRemoveAction final : public GameActionBase<GameCommand::RemoveLargeScenery>
+namespace OpenRCT2::GameActions
 {
-private:
-    CoordsXYZD _loc;
-    uint16_t _tileIndex{};
+    class LargeSceneryRemoveAction final : public GameActionBase<GameCommand::RemoveLargeScenery>
+    {
+    private:
+        CoordsXYZD _loc;
+        uint16_t _tileIndex{};
 
-public:
-    LargeSceneryRemoveAction() = default;
-    LargeSceneryRemoveAction(const CoordsXYZD& location, uint16_t tileIndex);
+    public:
+        LargeSceneryRemoveAction() = default;
+        LargeSceneryRemoveAction(const CoordsXYZD& location, uint16_t tileIndex);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    TileElement* FindLargeSceneryElement(const CoordsXYZ& pos, int32_t sequenceIndex) const;
-};
+    private:
+        TileElement* FindLargeSceneryElement(const CoordsXYZ& pos, int32_t sequenceIndex) const;
+    };
+} // namespace OpenRCT2::GameActions

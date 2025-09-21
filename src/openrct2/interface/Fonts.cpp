@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,17 +9,19 @@
 
 #include "Fonts.h"
 
+#include "../Diagnostic.h"
 #include "../config/Config.h"
+#include "../core/EnumUtils.hpp"
 #include "../core/String.hpp"
 #include "../drawing/TTF.h"
 #include "../localisation/Language.h"
 #include "../localisation/LocalisationService.h"
-#include "../util/Util.h"
 #include "FontFamilies.h"
 
+using namespace OpenRCT2;
 using namespace OpenRCT2::Localisation;
 
-#ifndef NO_TTF
+#ifndef DISABLE_TTF
 uint8_t const HINTING_DISABLED = 0;
 uint8_t const HINTING_THRESHOLD_LOW = 40;
 uint8_t const HINTING_THRESHOLD_MEDIUM = 60;
@@ -102,25 +104,44 @@ TTFFontSetDescriptor TTFFontMicroHei = { {
     { "wqy-microhei.ttc", "WenQuanYi Micro Hei", 11,  1, -2, 14, HINTING_THRESHOLD_MEDIUM, nullptr },
     { "wqy-microhei.ttc", "WenQuanYi Micro Hei", 10, -1, -1,  10, HINTING_THRESHOLD_MEDIUM, nullptr },
 } };
+
+TTFFontSetDescriptor TTFFontRoboto = { {
+    { "Roboto-Regular.ttf", "Roboto", 12, 0, -1, 12, HINTING_THRESHOLD_LOW, nullptr },
+    { "Roboto-Regular.ttf", "Roboto", 12, 0, -1, 12, HINTING_THRESHOLD_LOW, nullptr },
+    { "Roboto-Regular.ttf", "Roboto", 10, 0, -1,  9, HINTING_THRESHOLD_LOW, nullptr },
+} };
+
+TTFFontSetDescriptor TTFFontNotoSansCJK = { {
+    { "NotoSansCJK-Regular.ttc", "Noto Sans CJK", 12, 1, -3, 14, HINTING_THRESHOLD_MEDIUM, nullptr },
+    { "NotoSansCJK-Regular.ttc", "Noto Sans CJK", 12, 1, -3, 14, HINTING_THRESHOLD_MEDIUM, nullptr },
+    { "NotoSansCJK-Regular.ttc", "Noto Sans CJK",  9, 1, -2,  9, HINTING_THRESHOLD_MEDIUM, nullptr },
+} };
+
+TTFFontSetDescriptor TTFFontNotoNaskhArabic = { {
+    { "NotoNaskhArabic-Regular.ttf", "Noto Naskh Arabic", 12, 1, -3, 14, HINTING_THRESHOLD_MEDIUM, nullptr },
+    { "NotoNaskhArabic-Regular.ttf", "Noto Naskh Arabic", 12, 1, -3, 14, HINTING_THRESHOLD_MEDIUM, nullptr },
+    { "NotoNaskhArabic-Regular.ttf", "Noto Naskh Arabic",  9, 1, -2,  9, HINTING_THRESHOLD_MEDIUM, nullptr },
+} };
 // clang-format on
-#endif // NO_TTF
+#endif // DISABLE_TTF
 
 static void LoadSpriteFont(LocalisationService& localisationService)
 {
     TTFDispose();
     localisationService.UseTrueTypeFont(false);
-#ifndef NO_TTF
+#ifndef DISABLE_TTF
     gCurrentTTFFontSet = nullptr;
-#endif // NO_TTF
+#endif // DISABLE_TTF
 }
 
-#ifndef NO_TTF
+#ifndef DISABLE_TTF
 static bool LoadFont(LocalisationService& localisationService, TTFFontSetDescriptor* font)
 {
+    TTFDispose();
     localisationService.UseTrueTypeFont(true);
+
     gCurrentTTFFontSet = font;
 
-    TTFDispose();
     bool fontInitialised = TTFInitialise();
     return fontInitialised;
 }
@@ -128,12 +149,15 @@ static bool LoadFont(LocalisationService& localisationService, TTFFontSetDescrip
 static bool LoadCustomConfigFont(LocalisationService& localisationService)
 {
     static TTFFontSetDescriptor TTFFontCustom = { {
-        { gConfigFonts.FileName.c_str(), gConfigFonts.FontName.c_str(), gConfigFonts.SizeTiny, gConfigFonts.OffsetX,
-          gConfigFonts.OffsetY, gConfigFonts.HeightTiny, gConfigFonts.HintingThreshold, nullptr },
-        { gConfigFonts.FileName.c_str(), gConfigFonts.FontName.c_str(), gConfigFonts.SizeSmall, gConfigFonts.OffsetX,
-          gConfigFonts.OffsetY, gConfigFonts.HeightSmall, gConfigFonts.HintingThreshold, nullptr },
-        { gConfigFonts.FileName.c_str(), gConfigFonts.FontName.c_str(), gConfigFonts.SizeMedium, gConfigFonts.OffsetX,
-          gConfigFonts.OffsetY, gConfigFonts.HeightMedium, gConfigFonts.HintingThreshold, nullptr },
+        { Config::Get().fonts.FileName.c_str(), Config::Get().fonts.FontName.c_str(), Config::Get().fonts.SizeTiny,
+          Config::Get().fonts.OffsetX, Config::Get().fonts.OffsetY, Config::Get().fonts.HeightTiny,
+          Config::Get().fonts.HintingThreshold, nullptr },
+        { Config::Get().fonts.FileName.c_str(), Config::Get().fonts.FontName.c_str(), Config::Get().fonts.SizeSmall,
+          Config::Get().fonts.OffsetX, Config::Get().fonts.OffsetY, Config::Get().fonts.HeightSmall,
+          Config::Get().fonts.HintingThreshold, nullptr },
+        { Config::Get().fonts.FileName.c_str(), Config::Get().fonts.FontName.c_str(), Config::Get().fonts.SizeMedium,
+          Config::Get().fonts.OffsetX, Config::Get().fonts.OffsetY, Config::Get().fonts.HeightMedium,
+          Config::Get().fonts.HintingThreshold, nullptr },
     } };
 
     TTFDispose();
@@ -143,17 +167,17 @@ static bool LoadCustomConfigFont(LocalisationService& localisationService)
     bool fontInitialised = TTFInitialise();
     return fontInitialised;
 }
-#endif // NO_TTF
+#endif // DISABLE_TTF
 
 void TryLoadFonts(LocalisationService& localisationService)
 {
-#ifndef NO_TTF
+#ifndef DISABLE_TTF
     auto currentLanguage = localisationService.GetCurrentLanguage();
     TTFontFamily const* fontFamily = LanguagesDescriptors[currentLanguage].font_family;
 
-    if (fontFamily != FAMILY_OPENRCT2_SPRITE)
+    if (fontFamily != kFamilyOpenRCT2Sprite)
     {
-        if (!gConfigFonts.FileName.empty())
+        if (!Config::Get().fonts.FileName.empty())
         {
             if (LoadCustomConfigFont(localisationService))
             {
@@ -191,6 +215,6 @@ void TryLoadFonts(LocalisationService& localisationService)
             LOG_VERBOSE("Unable to initialise any of the preferred TrueType fonts -- falling back to sprite font.");
         }
     }
-#endif // NO_TTF
+#endif // DISABLE_TTF
     LoadSpriteFont(localisationService);
 }

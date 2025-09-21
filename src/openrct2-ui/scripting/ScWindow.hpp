@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,13 +11,11 @@
 
 #ifdef ENABLE_SCRIPTING
 
-#    include "ScWidget.hpp"
+    #include "ScWidget.hpp"
 
-#    include <openrct2/common.h>
-#    include <openrct2/interface/Window.h>
-#    include <openrct2/interface/Window_internal.h>
-#    include <openrct2/localisation/Language.h>
-#    include <openrct2/scripting/Duktape.hpp>
+    #include <openrct2/interface/Window.h>
+    #include <openrct2/interface/WindowBase.h>
+    #include <openrct2/scripting/Duktape.hpp>
 
 namespace OpenRCT2::Scripting
 {
@@ -27,7 +25,7 @@ namespace OpenRCT2::Scripting
     {
     private:
         WindowClass _class;
-        rct_windownumber _number;
+        WindowNumber _number;
 
     public:
         ScWindow(WindowBase* w)
@@ -35,7 +33,7 @@ namespace OpenRCT2::Scripting
         {
         }
 
-        ScWindow(WindowClass c, rct_windownumber n)
+        ScWindow(WindowClass c, WindowNumber n)
             : _class(c)
             , _number(n)
         {
@@ -99,13 +97,13 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                if (WindowCanResize(*w))
+                if (w->canBeResized())
                 {
-                    WindowResize(*w, value - w->width, 0);
+                    WindowResizeByDelta(*w, value - w->width, 0);
                 }
                 else
                 {
-                    WindowSetResize(*w, value, w->min_height, value, w->max_height);
+                    WindowSetResize(*w, { value, w->minHeight }, { value, w->maxHeight });
                 }
             }
         }
@@ -114,7 +112,7 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                return w->height;
+                return w->height - w->getTitleBarDiffNormal();
             }
             return 0;
         }
@@ -123,13 +121,14 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                if (WindowCanResize(*w))
+                value += w->getTitleBarDiffNormal();
+                if (w->canBeResized())
                 {
-                    WindowResize(*w, 0, value - w->height);
+                    WindowResizeByDelta(*w, 0, value - w->height);
                 }
                 else
                 {
-                    WindowSetResize(*w, w->min_width, value, w->max_width, value);
+                    WindowSetResize(*w, { w->minWidth, value }, { w->maxWidth, value });
                 }
             }
         }
@@ -138,7 +137,7 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                return w->min_width;
+                return w->minWidth;
             }
             return 0;
         }
@@ -147,7 +146,7 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                WindowSetResize(*w, value, w->min_height, w->max_width, w->max_height);
+                WindowSetResize(*w, { value, w->minHeight }, { w->maxWidth, w->maxHeight });
             }
         }
         int32_t maxWidth_get() const
@@ -155,7 +154,7 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                return w->max_width;
+                return w->maxWidth;
             }
             return 0;
         }
@@ -164,7 +163,7 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                WindowSetResize(*w, w->min_width, w->min_height, value, w->max_height);
+                WindowSetResize(*w, { w->minWidth, w->minHeight }, { value, w->maxHeight });
             }
         }
         int32_t minHeight_get() const
@@ -172,7 +171,7 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                return w->min_height;
+                return w->minHeight - w->getTitleBarDiffNormal();
             }
             return 0;
         }
@@ -181,7 +180,8 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                WindowSetResize(*w, w->min_width, value, w->max_width, w->max_height);
+                value += w->getTitleBarDiffNormal();
+                WindowSetResize(*w, { w->minWidth, value }, { w->maxWidth, w->maxHeight });
             }
         }
         int32_t maxHeight_get() const
@@ -189,7 +189,7 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                return w->max_height;
+                return w->maxHeight - w->getTitleBarDiffNormal();
             }
             return 0;
         }
@@ -198,7 +198,8 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                WindowSetResize(*w, w->min_width, w->min_height, w->max_width, value);
+                value += w->getTitleBarDiffNormal();
+                WindowSetResize(*w, { w->minWidth, w->minHeight }, { w->maxWidth, value });
             }
         }
         bool isSticky_get() const
@@ -206,7 +207,7 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                return (w->flags & (WF_STICK_TO_BACK | WF_STICK_TO_FRONT)) != 0;
+                return (w->flags.hasAny(WindowFlag::stickToBack, WindowFlag::stickToFront));
             }
             return false;
         }
@@ -219,11 +220,9 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                WidgetIndex widgetIndex = 0;
-                for (auto widget = w->widgets; widget->type != WindowWidgetType::Last; widget++)
+                for (WidgetIndex widgetIndex = 0; widgetIndex < w->widgets.size(); widgetIndex++)
                 {
                     result.push_back(ScWidget::ToDukValue(ctx, w, widgetIndex));
-                    widgetIndex++;
                 }
             }
             return result;
@@ -238,7 +237,10 @@ namespace OpenRCT2::Scripting
                 result.reserve(std::size(w->colours));
                 for (auto c : w->colours)
                 {
-                    result.push_back(c);
+                    auto colour = c.colour;
+                    if (c.hasFlag(ColourFlag::translucent))
+                        colour |= kLegacyColourFlagTranslucent;
+                    result.push_back(colour);
                 }
             }
             return result;
@@ -250,24 +252,24 @@ namespace OpenRCT2::Scripting
             {
                 for (size_t i = 0; i < std::size(w->colours); i++)
                 {
-                    int32_t c = COLOUR_BLACK;
+                    auto c = ColourWithFlags{ COLOUR_BLACK };
                     if (i < colours.size())
                     {
-                        c = std::clamp<int32_t>(BASE_COLOUR(colours[i]), COLOUR_BLACK, COLOUR_COUNT - 1);
-                        if (colours[i] & COLOUR_FLAG_TRANSLUCENT)
-                        {
-                            c = TRANSLUCENT(c);
-                        }
+                        colour_t colour = colours[i] & ~kLegacyColourFlagTranslucent;
+                        auto isTranslucent = (colours[i] & kLegacyColourFlagTranslucent);
+                        c.colour = std::clamp<colour_t>(colour, COLOUR_BLACK, COLOUR_COUNT - 1);
+                        c.flags = (isTranslucent ? EnumToFlag(ColourFlag::translucent) : 0);
                     }
                     w->colours[i] = c;
                 }
+                w->invalidate();
             }
         }
 
         std::string title_get() const
         {
             auto w = GetWindow();
-            if (w != nullptr && w->classification == WindowClass::Custom)
+            if (w != nullptr && w->classification == WindowClass::custom)
             {
                 return GetWindowTitle(w);
             }
@@ -276,7 +278,7 @@ namespace OpenRCT2::Scripting
         void title_set(std::string value)
         {
             auto w = GetWindow();
-            if (w != nullptr && w->classification == WindowClass::Custom)
+            if (w != nullptr && w->classification == WindowClass::custom)
             {
                 UpdateWindowTitle(w, value);
             }
@@ -285,7 +287,7 @@ namespace OpenRCT2::Scripting
         int32_t tabIndex_get() const
         {
             auto w = GetWindow();
-            if (w != nullptr && w->classification == WindowClass::Custom)
+            if (w != nullptr && w->classification == WindowClass::custom)
             {
                 return w->page;
             }
@@ -294,7 +296,7 @@ namespace OpenRCT2::Scripting
         void tabIndex_set(int32_t tab)
         {
             auto w = GetWindow();
-            if (w != nullptr && w->classification == WindowClass::Custom)
+            if (w != nullptr && w->classification == WindowClass::custom)
             {
                 UpdateWindowTab(w, tab);
             }
@@ -305,7 +307,8 @@ namespace OpenRCT2::Scripting
             auto w = GetWindow();
             if (w != nullptr)
             {
-                WindowClose(*w);
+                auto* windowMgr = Ui::GetWindowManager();
+                windowMgr->Close(*w);
             }
         }
 
@@ -326,11 +329,12 @@ namespace OpenRCT2::Scripting
 
         void bringToFront()
         {
-            auto w = GetWindow();
+            auto* w = GetWindow();
             if (w != nullptr)
             {
-                WindowBringToFront(*w);
-                w->flags |= WF_WHITE_BORDER_MASK;
+                auto* windowMgr = Ui::GetWindowManager();
+                w = windowMgr->BringToFront(*w);
+                w->flash();
             }
         }
 
@@ -360,7 +364,8 @@ namespace OpenRCT2::Scripting
     private:
         WindowBase* GetWindow() const
         {
-            return WindowFindByNumber(_class, _number);
+            auto* windowMgr = Ui::GetWindowManager();
+            return windowMgr->FindByNumber(_class, _number);
         }
     };
 } // namespace OpenRCT2::Scripting

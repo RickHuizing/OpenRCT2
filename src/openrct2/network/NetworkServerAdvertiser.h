@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,25 +9,26 @@
 
 #pragma once
 
-#include "../common.h"
-
 #include <memory>
 
-enum class ADVERTISE_STATUS
+namespace OpenRCT2::Network
 {
-    DISABLED,
-    UNREGISTERED,
-    REGISTERED,
-};
-
-struct INetworkServerAdvertiser
-{
-    virtual ~INetworkServerAdvertiser()
+    enum class AdvertiseStatus
     {
-    }
+        disabled,
+        unregistered,
+        registered,
+    };
 
-    virtual ADVERTISE_STATUS GetStatus() const abstract;
-    virtual void Update() abstract;
-};
+    struct INetworkServerAdvertiser
+    {
+        virtual ~INetworkServerAdvertiser()
+        {
+        }
 
-[[nodiscard]] std::unique_ptr<INetworkServerAdvertiser> CreateServerAdvertiser(uint16_t port);
+        virtual AdvertiseStatus GetStatus() const = 0;
+        virtual void Update() = 0;
+    };
+
+    [[nodiscard]] std::unique_ptr<INetworkServerAdvertiser> CreateServerAdvertiser(uint16_t port);
+} // namespace OpenRCT2::Network

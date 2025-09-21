@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,20 +11,23 @@
 
 #include "GameAction.h"
 
-class WallRemoveAction final : public GameActionBase<GameCommand::RemoveWall>
+namespace OpenRCT2::GameActions
 {
-private:
-    CoordsXYZD _loc;
+    class WallRemoveAction final : public GameActionBase<GameCommand::RemoveWall>
+    {
+    private:
+        CoordsXYZD _loc;
 
-public:
-    WallRemoveAction() = default;
-    WallRemoveAction(const CoordsXYZD& loc);
+    public:
+        WallRemoveAction() = default;
+        WallRemoveAction(const CoordsXYZD& loc);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
 
-private:
-    TileElement* GetFirstWallElementAt(const CoordsXYZD& location, bool isGhost) const;
-};
+    private:
+        TileElement* GetFirstWallElementAt(const CoordsXYZD& location, bool isGhost) const;
+    };
+} // namespace OpenRCT2::GameActions

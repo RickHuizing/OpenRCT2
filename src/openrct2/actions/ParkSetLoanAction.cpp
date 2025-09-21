@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -14,61 +14,62 @@
 #include "../core/MemoryStream.h"
 #include "../localisation/StringIds.h"
 #include "../management/Finance.h"
-#include "../ui/UiContext.h"
 #include "../ui/WindowManager.h"
 #include "../windows/Intent.h"
 
-using namespace OpenRCT2;
-
-ParkSetLoanAction::ParkSetLoanAction(money64 value)
-    : _value(value)
+namespace OpenRCT2::GameActions
 {
-}
-
-void ParkSetLoanAction::AcceptParameters(GameActionParameterVisitor& visitor)
-{
-    visitor.Visit("value", _value);
-}
-
-uint16_t ParkSetLoanAction::GetActionFlags() const
-{
-    return GameAction::GetActionFlags() | GameActions::Flags::AllowWhilePaused;
-}
-
-void ParkSetLoanAction::Serialise(DataSerialiser& stream)
-{
-    GameAction::Serialise(stream);
-    stream << DS_TAG(_value);
-}
-
-GameActions::Result ParkSetLoanAction::Query() const
-{
-    if (_value > gBankLoan && _value > gMaxBankLoan)
+    ParkSetLoanAction::ParkSetLoanAction(money64 value)
+        : _value(value)
     {
-        return GameActions::Result(
-            GameActions::Status::Disallowed, STR_CANT_BORROW_ANY_MORE_MONEY, STR_BANK_REFUSES_TO_INCREASE_LOAN);
     }
-    if (_value < gBankLoan && _value < 0.00_GBP)
-    {
-        return GameActions::Result(GameActions::Status::InvalidParameters, STR_CANT_PAY_BACK_LOAN, STR_LOAN_CANT_BE_NEGATIVE);
-    }
-    // The “isPayingBack” check is needed to allow increasing the loan when the player is in debt.
-    const auto isPayingBack = gBankLoan > _value;
-    const auto amountToPayBack = gBankLoan - _value;
-    if (isPayingBack && amountToPayBack > GetGameState().Cash)
-    {
-        return GameActions::Result(
-            GameActions::Status::InsufficientFunds, STR_CANT_PAY_BACK_LOAN, STR_NOT_ENOUGH_CASH_AVAILABLE);
-    }
-    return GameActions::Result();
-}
 
-GameActions::Result ParkSetLoanAction::Execute() const
-{
-    GetGameState().Cash -= (gBankLoan - _value);
-    gBankLoan = _value;
+    void ParkSetLoanAction::AcceptParameters(GameActionParameterVisitor& visitor)
+    {
+        visitor.Visit("value", _value);
+    }
 
-    auto windowManager = OpenRCT2::GetContext()->GetUiContext()->GetWindowManager();
-    windowManager->BroadcastIntent(Intent(INTENT_ACTION_UPDATE_CASH));
-    return GameActions::Result();
-}
+    uint16_t ParkSetLoanAction::GetActionFlags() const
+    {
+        return GameAction::GetActionFlags() | Flags::AllowWhilePaused;
+    }
+
+    void ParkSetLoanAction::Serialise(DataSerialiser& stream)
+    {
+        GameAction::Serialise(stream);
+        stream << DS_TAG(_value);
+    }
+
+    Result ParkSetLoanAction::Query(GameState_t& gameState) const
+    {
+        auto& park = getGameState().park;
+        if (_value > park.bankLoan && _value > park.maxBankLoan)
+        {
+            return Result(Status::Disallowed, STR_CANT_BORROW_ANY_MORE_MONEY, STR_BANK_REFUSES_TO_INCREASE_LOAN);
+        }
+        if (_value < park.bankLoan && _value < 0.00_GBP)
+        {
+            return Result(Status::InvalidParameters, STR_CANT_PAY_BACK_LOAN, STR_LOAN_CANT_BE_NEGATIVE);
+        }
+        // The “isPayingBack” check is needed to allow increasing the loan when the player is in debt.
+        const auto isPayingBack = park.bankLoan > _value;
+        const auto amountToPayBack = park.bankLoan - _value;
+        if (isPayingBack && amountToPayBack > park.cash)
+        {
+            return Result(Status::InsufficientFunds, STR_CANT_PAY_BACK_LOAN, STR_NOT_ENOUGH_CASH_AVAILABLE);
+        }
+        return Result();
+    }
+
+    Result ParkSetLoanAction::Execute(GameState_t& gameState) const
+    {
+        auto& park = getGameState().park;
+
+        park.cash -= (park.bankLoan - _value);
+        park.bankLoan = _value;
+
+        auto windowManager = Ui::GetWindowManager();
+        windowManager->BroadcastIntent(Intent(INTENT_ACTION_UPDATE_CASH));
+        return Result();
+    }
+} // namespace OpenRCT2::GameActions

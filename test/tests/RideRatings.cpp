@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 #include <openrct2/Context.h>
 #include <openrct2/Game.h>
+#include <openrct2/GameState.h>
 #include <openrct2/OpenRCT2.h>
 #include <openrct2/audio/AudioContext.h>
 #include <openrct2/core/File.h>
@@ -20,6 +21,7 @@
 #include <openrct2/platform/Platform.h>
 #include <openrct2/ride/Ride.h>
 #include <openrct2/ride/RideData.h>
+#include <openrct2/ride/RideManager.hpp>
 #include <string>
 
 using namespace OpenRCT2;
@@ -29,15 +31,17 @@ class RideRatings : public testing::Test
 protected:
     void CalculateRatingsForAllRides()
     {
-        for (const auto& ride : GetRideManager())
+        auto& gameState = getGameState();
+        for (const auto& ride : RideManager(gameState))
         {
-            RideRatingsUpdateRide(ride);
+            OpenRCT2::RideRating::UpdateRide(ride);
         }
     }
 
     void DumpRatings()
     {
-        for (const auto& ride : GetRideManager())
+        auto& gameState = getGameState();
+        for (const auto& ride : RideManager(gameState))
         {
             std::string line = FormatRatings(ride);
             printf("%s\n", line.c_str());
@@ -46,10 +50,11 @@ protected:
 
     std::string FormatRatings(const Ride& ride)
     {
-        RatingTuple ratings = ride.ratings;
-        std::string line = String::StdFormat(
-            "%s: (%d, %d, %d)", ride.GetRideTypeDescriptor().EnumName, static_cast<int>(ratings.Excitement),
-            static_cast<int>(ratings.Intensity), static_cast<int>(ratings.Nausea));
+        OpenRCT2::RideRating::Tuple ratings = ride.ratings;
+        auto name = std::string(ride.getRideTypeDescriptor().Name);
+        std::string line = String::stdFormat(
+            "%s: (%d, %d, %d)", name.c_str(), static_cast<int>(ratings.excitement), static_cast<int>(ratings.intensity),
+            static_cast<int>(ratings.nausea));
         return line;
     }
 
@@ -78,7 +83,8 @@ protected:
 
         // Check ride ratings
         int expI = 0;
-        for (const auto& ride : GetRideManager())
+        auto& gameState = getGameState();
+        for (const auto& ride : RideManager(gameState))
         {
             auto actual = FormatRatings(ride);
             auto expected = expectedRatings[expI];

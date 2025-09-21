@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,27 +11,30 @@
 
 #include "GameAction.h"
 
-enum class RideRatingType : uint8_t
+namespace OpenRCT2::GameActions
 {
-    Excitement,
-    Intensity,
-    Nausea,
-};
-//
-class RideFreezeRatingAction final : public GameActionBase<GameCommand::FreezeRideRating>
-{
-private:
-    RideId _rideIndex{ RideId::GetNull() };
-    RideRatingType _type{};
-    ride_rating _value{};
+    enum class RideRatingType : uint8_t
+    {
+        Excitement,
+        Intensity,
+        Nausea,
+    };
 
-public:
-    RideFreezeRatingAction() = default;
-    RideFreezeRatingAction(RideId rideIndex, RideRatingType type, ride_rating value);
+    class RideFreezeRatingAction final : public GameActionBase<GameCommand::FreezeRideRating>
+    {
+    private:
+        RideId _rideIndex{ RideId::GetNull() };
+        RideRatingType _type{};
+        RideRating_t _value{};
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+    public:
+        RideFreezeRatingAction() = default;
+        RideFreezeRatingAction(RideId rideIndex, RideRatingType type, RideRating_t value);
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        void AcceptParameters(GameActionParameterVisitor&) final;
+
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

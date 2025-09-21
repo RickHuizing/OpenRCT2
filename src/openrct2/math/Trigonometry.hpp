@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -101,12 +101,13 @@ namespace OpenRCT2::Math::Trigonometry
         { 195, -165 },  // inverting transition slopes down
         { 134, -217 },  // inverting transition slopes down
         { 252, 44 },    // spiral lift hill up
+        { 252, -44 },   // spiral lift hill down
     };
-    static_assert(std::size(PitchToDirectionVectorFromGeometry) == NumVehiclePitches);
+    static_assert(std::size(PitchToDirectionVectorFromGeometry) == EnumValue(VehiclePitch::pitchCount));
 
     constexpr int32_t ComputeHorizontalMagnitude(int32_t length, uint8_t pitch)
     {
-        return (-PitchToDirectionVectorFromGeometry[static_cast<uint8_t>(pitch)].y * length) / 256;
+        return (-PitchToDirectionVectorFromGeometry[pitch].y * length) / 256;
     }
 
     constexpr CoordsXY ComputeXYVector(int32_t magnitude, uint8_t yaw)

@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,20 +11,23 @@
 
 #include "GameAction.h"
 
-class ParkSetNameAction final : public GameActionBase<GameCommand::SetParkName>
+namespace OpenRCT2::GameActions
 {
-private:
-    std::string _name;
+    class ParkSetNameAction final : public GameActionBase<GameCommand::SetParkName>
+    {
+    private:
+        std::string _name;
 
-public:
-    ParkSetNameAction() = default;
-    ParkSetNameAction(const std::string& name);
+    public:
+        ParkSetNameAction() = default;
+        ParkSetNameAction(const std::string& name);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

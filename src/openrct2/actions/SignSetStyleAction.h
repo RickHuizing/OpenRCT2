@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -11,23 +11,26 @@
 
 #include "GameAction.h"
 
-class SignSetStyleAction final : public GameActionBase<GameCommand::SetSignStyle>
+namespace OpenRCT2::GameActions
 {
-private:
-    BannerIndex _bannerIndex{ BannerIndex::GetNull() };
-    uint8_t _mainColour{};
-    uint8_t _textColour{};
-    bool _isLarge{};
+    class SignSetStyleAction final : public GameActionBase<GameCommand::SetSignStyle>
+    {
+    private:
+        BannerIndex _bannerIndex{ BannerIndex::GetNull() };
+        uint8_t _mainColour{};
+        uint8_t _textColour{};
+        bool _isLarge{};
 
-public:
-    SignSetStyleAction() = default;
-    SignSetStyleAction(BannerIndex bannerIndex, uint8_t mainColour, uint8_t textColour, bool isLarge);
+    public:
+        SignSetStyleAction() = default;
+        SignSetStyleAction(BannerIndex bannerIndex, uint8_t mainColour, uint8_t textColour, bool isLarge);
 
-    void AcceptParameters(GameActionParameterVisitor& visitor) override;
+        void AcceptParameters(GameActionParameterVisitor&) final;
 
-    uint16_t GetActionFlags() const override;
+        uint16_t GetActionFlags() const override;
 
-    void Serialise(DataSerialiser& stream) override;
-    GameActions::Result Query() const override;
-    GameActions::Result Execute() const override;
-};
+        void Serialise(DataSerialiser& stream) override;
+        Result Query(GameState_t& gameState) const override;
+        Result Execute(GameState_t& gameState) const override;
+    };
+} // namespace OpenRCT2::GameActions

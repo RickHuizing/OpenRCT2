@@ -1,5 +1,5 @@
 /*****************************************************************************
- * Copyright (c) 2014-2024 OpenRCT2 developers
+ * Copyright (c) 2014-2025 OpenRCT2 developers
  *
  * For a complete list of all authors, please refer to contributors.md
  * Interested in contributing? Visit https://github.com/OpenRCT2/OpenRCT2
@@ -9,18 +9,21 @@
 
 #include "PauseToggleAction.h"
 
-uint16_t PauseToggleAction::GetActionFlags() const
+namespace OpenRCT2::GameActions
 {
-    return GameAction::GetActionFlags() | GameActions::Flags::AllowWhilePaused | GameActions::Flags::IgnoreForReplays;
-}
+    uint16_t PauseToggleAction::GetActionFlags() const
+    {
+        return GameAction::GetActionFlags() | Flags::AllowWhilePaused | Flags::IgnoreForReplays;
+    }
 
-GameActions::Result PauseToggleAction::Query() const
-{
-    return GameActions::Result();
-}
+    Result PauseToggleAction::Query(GameState_t& gameState) const
+    {
+        return Result();
+    }
 
-GameActions::Result PauseToggleAction::Execute() const
-{
-    PauseToggle();
-    return GameActions::Result();
-}
+    Result PauseToggleAction::Execute(GameState_t& gameState) const
+    {
+        PauseToggle();
+        return Result();
+    }
+} // namespace OpenRCT2::GameActions

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../Identifiers.h"
-#include "../common.h"
 #include "../world/Location.hpp"
 
 enum class EntityType : uint8_t
@@ -45,6 +44,7 @@ struct EntityBase
     EntitySpriteData SpriteData;
     // Used as direction or rotation depending on the entity.
     uint8_t Orientation;
+    uint32_t SpatialIndex;
 
     /**
      * Moves a sprite to a new location, invalidates the current position if valid
@@ -53,6 +53,8 @@ struct EntityBase
      *  rct2: 0x0069E9D3
      */
     void MoveTo(const CoordsXYZ& newLocation);
+
+    void MoveToAndUpdateSpatialIndex(const CoordsXYZ& newLocation);
 
     /**
      * Sets the entity location without screen invalidation.
@@ -65,14 +67,29 @@ struct EntityBase
     CoordsXYZ GetLocation() const;
 
     void Invalidate();
-    template<typename T> bool Is() const;
-    template<typename T> T* As()
+    template<typename T>
+    bool Is() const;
+    template<typename T>
+    T* As()
     {
         return Is<T>() ? reinterpret_cast<T*>(this) : nullptr;
     }
-    template<typename T> const T* As() const
+    template<typename T>
+    const T* As() const
     {
         return Is<T>() ? reinterpret_cast<const T*>(this) : nullptr;
+    }
+
+    template<typename T>
+    T* cast()
+    {
+        return reinterpret_cast<T*>(this);
+    }
+
+    template<typename T>
+    const T* cast() const
+    {
+        return reinterpret_cast<const T*>(this);
     }
 
     void Serialise(class DataSerialiser& stream);
